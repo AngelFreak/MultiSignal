@@ -13,6 +13,7 @@ MultiSignal is a Shell script designed to streamline and simplify the management
 - User-friendly GUI.
 - Simplifies common multi-instance management tasks.
 - 100% Shell script — no external dependencies required (besides Signal and standard Unix tools).
+- Create, and delete instances.
 
 ## Requirements
 
