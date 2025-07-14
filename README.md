@@ -2,9 +2,8 @@
 
 A script to make a multi Signal setup more user friendly.
 
-## Overview# MultiSignal
+## Overview
 A script to make a multi Signal setup more user friendly
-
 
 MultiSignal is a Shell script designed to streamline and simplify the management of multiple Signal instances. This tool aims to provide an easier and more user-friendly experience for users who need to operate several Signal sessions simultaneously.
 
