@@ -26,3 +26,5 @@ Clone the repository:
 ```sh
 git clone https://github.com/AngelFreak/MultiSignal.git
 cd MultiSignal
+chmod +x NewSignal.sh
+./NewSignal.sh
