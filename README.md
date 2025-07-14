@@ -18,9 +18,8 @@ MultiSignal is a Shell script designed to streamline and simplify the management
 ## Requirements
 
 - Bash or compatible shell
-- Signal installed on your system
-- Unix-like operating system (Linux, macOS, WSL, etc.)
-
+- Ubuntu
+  
 ## Installation
 
 Clone the repository:
