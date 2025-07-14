@@ -10,7 +10,7 @@ MultiSignal is a Shell script designed to streamline and simplify the management
 ## Features
 
 - Easy setup for multiple Signal accounts.
-- User-friendly command-line interface.
+- User-friendly GUI.
 - Simplifies common multi-instance management tasks.
 - 100% Shell script — no external dependencies required (besides Signal and standard Unix tools).
 
