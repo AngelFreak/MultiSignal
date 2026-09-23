@@ -7,13 +7,13 @@ Replaces `~/dev/MultiSignal.sh` with a native GTK4 + libadwaita app with an Appl
 **Goal**: Rust installed (+ Inter font); `cargo run` opens an empty libadwaita window.
 **Success Criteria**: `cargo build` succeeds against GTK 4.14 / libadwaita 1.5.
 **Tests**: none yet (build only).
-**Status**: In Progress — Rust 1.98.1 installed, crate created (gtk4 0.11.5, libadwaita 0.9.2), skeleton builds; Inter font not installed yet; not committed
+**Status**: Complete — Rust 1.98.1, gtk4 0.11.5, libadwaita 0.9.2; skeleton committed. Open: Inter font not installed yet (`sudo apt install fonts-inter`, needed before the Stage 4 visual review)
 
 ## Stage 2: Core library (no GTK)
 **Goal**: name rules, paths, launchers, running detection, profile loading, and the `Store` (create/delete/repair/launch), same on-disk format as the Bash script.
 **Success Criteria**: every behaviour in `MultiSignal.test.sh` has a passing Rust test (parity table in the detailed plan).
 **Tests**: unit tests per module; `tests/store.rs` against a temp HOME with a fake `/proc`.
-**Status**: Not Started
+**Status**: Complete — 24 unit + 11 integration tests. Store-level rows of the parity table are covered; UI-level rows (install, create-then-launch, delete cancel) land in Stage 4. Bash tests not in the parity table: `menu_cancel_exits_cleanly` and `create_prompt_has_no_underscore` are zenity-only; `delete_skips_running_profile_when_asked` and `delete_lists_names_with_commas` are multi-select, which is out of scope.
 
 ## Stage 3: System adapters
 **Goal**: real gio Trash, detached `setsid -f` launching, snap install via pkexec.

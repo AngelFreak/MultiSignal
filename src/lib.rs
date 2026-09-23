@@ -8,4 +8,5 @@ pub mod names;
 pub mod paths;
 pub mod procs;
 pub mod profiles;
+pub mod store;
 pub mod units;
