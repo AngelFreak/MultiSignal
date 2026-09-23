@@ -2,7 +2,7 @@
 PREFIX ?= $(HOME)/.local
 APP_ID = io.github.multisignal.MultiSignal
 
-.PHONY: install uninstall
+.PHONY: install uninstall deb
 
 install:
 	cargo build --release
@@ -13,3 +13,7 @@ install:
 uninstall:
 	rm -f $(PREFIX)/bin/multisignal $(PREFIX)/share/applications/$(APP_ID).desktop
 	-update-desktop-database $(PREFIX)/share/applications 2>/dev/null
+
+# An installable package: sudo apt install ./target/debian/multisignal_*.deb
+deb:
+	scripts/build-deb.sh
