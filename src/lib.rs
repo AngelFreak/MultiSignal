@@ -9,4 +9,5 @@ pub mod paths;
 pub mod procs;
 pub mod profiles;
 pub mod store;
+pub mod system;
 pub mod units;
