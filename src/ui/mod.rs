@@ -148,10 +148,7 @@ struct DialogFrame {
 }
 
 fn dialog_frame(icon: &impl IsA<gtk::Widget>, title: &str, body: &str, width: i32) -> DialogFrame {
-    let dialog = adw::Dialog::builder()
-        .content_width(width)
-        .follows_content_size(true)
-        .build();
+    let dialog = adw::Dialog::builder().content_width(width).build();
     dialog.add_css_class("desktop-dialog");
 
     let title = gtk::Label::builder()

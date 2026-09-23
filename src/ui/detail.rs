@@ -49,7 +49,9 @@ pub fn build(p: &Profile, compact: bool) -> DetailWidgets {
 
     let storage = card();
     values.push(add_value_row(&storage, "Data folder", &tilde(&p.dir)));
-    values.push(add_value_row(&storage, "Size", &units::size(p.size_bytes)));
+    let size = add_value_row(&storage, "Size", &units::size(p.size_bytes));
+    size.1.add_css_class("numeric");
+    values.push(size);
     root.append(&section("Storage", &storage));
 
     let app_menu = card();
@@ -215,6 +217,7 @@ fn section(title: &str, card: &gtk::ListBox) -> gtk::Box {
 fn add_row(card: &gtk::ListBox, title: &str, suffix: &impl IsA<gtk::Widget>) {
     let row = adw::ActionRow::builder()
         .title(title)
+        .title_lines(1)
         .use_markup(false)
         .activatable(false)
         .build();
@@ -236,6 +239,7 @@ fn value_label(text: &str) -> gtk::Label {
     gtk::Label::builder()
         .label(text)
         .ellipsize(gtk::pango::EllipsizeMode::Middle)
+        .max_width_chars(44)
         .css_classes(["row-value"])
         .build()
 }

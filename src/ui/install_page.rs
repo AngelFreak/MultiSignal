@@ -22,7 +22,7 @@ impl InstallPage {
             ));
         }
         let (root, _bar, actions) = super::window::whole_window_page(
-            "system-software-install-symbolic",
+            "folder-download-symbolic",
             "Signal Desktop Isn’t Installed",
             &text,
         );

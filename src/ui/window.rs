@@ -832,7 +832,7 @@ fn build_sidebar() -> Sidebar {
 
     let large_summary = gtk::Label::builder()
         .xalign(0.0)
-        .css_classes(["large-summary"])
+        .css_classes(["large-summary", "numeric"])
         .build();
     let large_title = gtk::Box::new(gtk::Orientation::Vertical, 2);
     large_title.add_css_class("large-title-box");
@@ -869,7 +869,7 @@ fn build_sidebar() -> Sidebar {
     let footer = gtk::Label::builder()
         .xalign(0.0)
         .ellipsize(gtk::pango::EllipsizeMode::End)
-        .css_classes(["sidebar-footer"])
+        .css_classes(["sidebar-footer", "numeric"])
         .build();
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&bar);

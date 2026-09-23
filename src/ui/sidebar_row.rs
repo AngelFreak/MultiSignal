@@ -29,7 +29,9 @@ pub fn build(p: &Profile, compact: bool) -> gtk::ListBoxRow {
     if p.running {
         secondary.append(&small_label("Running ·", "status-running"));
     }
-    secondary.append(&small_label(&units::size(p.size_bytes), "row-secondary"));
+    let size = small_label(&units::size(p.size_bytes), "row-secondary");
+    size.add_css_class("numeric");
+    secondary.append(&size);
 
     let text = gtk::Box::new(gtk::Orientation::Vertical, 1);
     text.set_valign(gtk::Align::Center);
@@ -39,11 +41,19 @@ pub fn build(p: &Profile, compact: bool) -> gtk::ListBoxRow {
 
     let content = gtk::Box::new(gtk::Orientation::Horizontal, if compact { 12 } else { 10 });
     content.append(&avatar::with_status(&p.name, avatar_size, p.running, dot));
-    content.append(&text);
     if compact {
+        // Text and chevron share a full-height box that carries the row
+        // separator, so it starts under the text like an iOS list.
         let chevron = gtk::Image::from_icon_name("go-next-symbolic");
         chevron.add_css_class("chevron");
-        content.append(&chevron);
+        let inner = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        inner.add_css_class("row-inner");
+        inner.set_hexpand(true);
+        inner.append(&text);
+        inner.append(&chevron);
+        content.append(&inner);
+    } else {
+        content.append(&text);
     }
 
     let row = gtk::ListBoxRow::new();

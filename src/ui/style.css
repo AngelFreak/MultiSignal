@@ -22,23 +22,23 @@ headerbar button.back-button { color: @accent_color; font-size: 15px; padding: 0
 .navigation-sidebar > row:selected .row-secondary { color: alpha(white, 0.8); }
 .navigation-sidebar > row:selected .row-warning,
 .navigation-sidebar > row:selected .status-running { color: white; }
-.sidebar-footer { padding: 10px 16px 12px; box-shadow: inset 0 1px @hairline; font-size: 12px; color: @secondary_fg; font-feature-settings: "tnum"; }
+.sidebar-footer { padding: 10px 16px 12px; box-shadow: inset 0 1px @hairline; font-size: 12px; color: @secondary_fg; }
 
 .row-name { font-size: 14px; font-weight: 500; }
-.row-secondary { font-size: 12px; color: @secondary_fg; font-feature-settings: "tnum"; }
+.row-secondary { font-size: 12px; color: @secondary_fg; }
 .row-warning { font-size: 12px; color: @warning_color; }
 .status-running { font-size: 12px; font-weight: 500; color: @success_text; }
 
 /* Folded list: large title, rows in a card, chevrons */
 .large-title-box { margin: 8px 16px 20px 20px; }
 .large-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
-.large-summary { font-size: 13px; color: @secondary_fg; font-feature-settings: "tnum"; }
+.large-summary { font-size: 13px; color: @secondary_fg; }
 list.compact-list { margin: 0 16px; background: @card_bg_color; border-radius: 12px; box-shadow: none; }
 list.compact-list > row { min-height: 56px; padding: 0 0 0 16px; border-bottom: none; }
-list.compact-list > row > box { min-height: 56px; }
-list.compact-list > row:not(:last-child) > box > box { box-shadow: inset 0 -1px @hairline; }
+list.compact-list .row-inner { min-height: 56px; padding-right: 14px; }
+list.compact-list > row:not(:last-child) .row-inner { box-shadow: inset 0 -1px @hairline; }
 list.compact-list .row-name { font-size: 15px; }
-.chevron { color: @chevron_color; margin-right: 14px; }
+.chevron { color: @chevron_color; }
 .compact-note { font-size: 12px; color: @secondary_fg; margin: 6px 32px 32px; }
 
 /* Detail pane */
@@ -53,9 +53,12 @@ list.compact-list .row-name { font-size: 15px; }
 .detail list.boxed-list > row { min-height: 44px; border-bottom: none; background: transparent; }
 .detail list.boxed-list > row:not(:last-child) { box-shadow: inset 0 -1px @hairline; }
 .detail list.boxed-list > row.activatable:hover { background: @hover_bg; }
-.detail row.action-row > box.header { min-height: 44px; padding: 0 16px; }
-.detail row.action-row label.title { font-size: 14px; }
-.row-value { font-size: 14px; color: @secondary_fg; font-feature-settings: "tnum"; }
+.detail list.boxed-list > row { padding: 0; }
+.detail list.boxed-list > row > box.header { min-height: 44px; margin: 0 16px; }
+.detail list.boxed-list > row > box.header > box.title { margin: 0; }
+.detail list.boxed-list > row > box.header > box.title > .title { font-size: 14px; }
+.row-value { font-size: 14px; color: @secondary_fg; }
+.numeric { font-feature-settings: "tnum"; }
 .row-warning-value { font-size: 14px; color: @warning_color; }
 .success-icon { color: @success_text; }
 .destructive-row { font-size: 14px; color: @destructive_color; margin: 13px 16px; }
@@ -101,12 +104,15 @@ button.push.link-text { color: @link_color; }
 .install-error { font-size: 12px; color: @error_color; }
 
 /* Dialogs, fields, toasts */
+dialog-host > dialog.desktop-dialog sheet, window.dialog-window { background-color: @dialog_bg_color; color: @dialog_fg_color; }
 .dialog-content { margin: 22px 22px 18px; }
 .dialog-title { font-size: 15px; font-weight: 600; }
 .dialog-body { font-size: 13px; color: @secondary_fg; }
 .desktop-dialog button.push { min-width: 60px; min-height: 30px; padding: 0 14px; }
 .field-label { font-size: 12px; font-weight: 600; color: @secondary_fg; }
-entry.field { min-height: 32px; border-radius: 7px; font-size: 13px; }
+entry.field { min-height: 32px; border-radius: 7px; font-size: 13px; background-color: @card_bg_color; color: @window_fg_color; box-shadow: inset 0 0 0 1px @field_border; outline: none; }
+entry.field:focus-within { box-shadow: inset 0 0 0 1px @accent_bg_color, 0 0 0 3px alpha(@accent_bg_color, 0.45); }
+entry.field.error, entry.field.error:focus-within { color: @window_fg_color; background-color: @card_bg_color; box-shadow: inset 0 0 0 1px @error_color, 0 0 0 3px alpha(@error_color, 0.25); }
 .field-status-line { min-height: 18px; }
 .field-status { font-size: 12px; color: @secondary_fg; }
 .field-status.error { color: @error_color; }
