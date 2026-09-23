@@ -1,0 +1,60 @@
+# Builds the Ubuntu package for a release tag and attaches it to the release:
+#   git tag v0.1.0 && git push origin v0.1.0
+# The tag must match the version in Cargo.toml. Run it by hand (Actions tab,
+# "Run workflow") to test and build without releasing; the .deb is then kept
+# as a run artifact.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libadwaita-1-dev dpkg-dev desktop-file-utils xvfb
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the tag matches Cargo.toml
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(cargo pkgid | sed 's/.*[#@]//')
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in Cargo.toml"
+            exit 1
+          fi
+
+      # The UI tests build real GTK windows, so they need a display.
+      - name: Test
+        run: xvfb-run -a cargo test --locked
+
+      - name: Build the package
+        run: echo "DEB=$(scripts/build-deb.sh)" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: deb
+          path: ${{ env.DEB }}
+
+      - name: Attach it to the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "$DEB" --clobber

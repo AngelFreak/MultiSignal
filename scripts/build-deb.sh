@@ -29,11 +29,24 @@ depends=$(cd "$work" && dpkg-shlibdeps -O -e"$root/usr/bin/multisignal" |
     sed -n 's/^shlibs:Depends=//p')
 [[ -n $depends ]] || { echo "could not work out the dependencies" >&2; exit 1; }
 
+# Maintainer: $MAINTAINER, else your git identity, else (as on CI runners,
+# which have no git identity) the author of the commit being packaged.
+maintainer=${MAINTAINER:-}
+if [[ -z $maintainer ]]; then
+    name=$(git config user.name || true)
+    email=$(git config user.email || true)
+    if [[ -n $name && -n $email ]]; then
+        maintainer="$name <$email>"
+    else
+        maintainer=$(git log -1 --format='%an <%ae>')
+    fi
+fi
+
 cat >"$root/DEBIAN/control" <<CONTROL
 Package: multisignal
 Version: $version
 Architecture: $arch
-Maintainer: $(git config user.name) <$(git config user.email)>
+Maintainer: $maintainer
 Installed-Size: $(du -sk --exclude=DEBIAN "$root" | cut -f1)
 Depends: $depends
 Recommends: snapd
