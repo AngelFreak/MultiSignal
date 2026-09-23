@@ -12,7 +12,10 @@ pub const DEFAULT_NAME: &str = "Signal (default)";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Profile {
+    /// The key: the folder name in `~/Signal`, or `DEFAULT_NAME`.
     pub name: String,
+    /// What the UI shows; the folder name, or the user's name for the default.
+    pub title: String,
     pub dir: PathBuf,
     pub size_bytes: u64,
     pub running: bool,
@@ -57,6 +60,7 @@ pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
     if paths.default_data_dir.is_dir() {
         profiles.push(Profile {
             name: DEFAULT_NAME.to_string(),
+            title: DEFAULT_NAME.to_string(),
             dir: paths.default_data_dir.clone(),
             size_bytes: dir_size(&paths.default_data_dir),
             running: running.default,
@@ -71,6 +75,7 @@ pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
             running: running.data_dirs.contains(&dir),
             launchers: launcher::find(paths, &name)?,
             is_default: false,
+            title: name.clone(),
             dir,
             name,
         });
@@ -167,6 +172,8 @@ mod tests {
         assert_eq!(names, [DEFAULT_NAME, "Alpha"]);
         let default = &profiles[0];
         assert!(default.is_default);
+        assert_eq!(default.title, DEFAULT_NAME);
+        assert_eq!(profiles[1].title, "Alpha");
         assert!(default.running);
         assert_eq!(default.size_bytes, 700);
         assert_eq!(default.dir, p.default_data_dir);

@@ -140,11 +140,11 @@ pub fn build(p: &Profile, compact: bool) -> DetailWidgets {
 
 fn hero(p: &Profile, compact: bool) -> (gtk::Box, gtk::Label, gtk::Button) {
     let size = if compact { 88 } else { 96 };
-    let picture = avatar::with_status(&p.name, size, p.running, "dot-hero");
+    let picture = avatar::with_status(&p.title, size, p.running, "dot-hero");
     picture.add_css_class("hero-avatar");
 
     let title = gtk::Label::builder()
-        .label(&p.name)
+        .label(&p.title)
         .ellipsize(gtk::pango::EllipsizeMode::End)
         .css_classes(["hero-title"])
         .build();

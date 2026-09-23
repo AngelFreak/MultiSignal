@@ -17,6 +17,13 @@ pub fn save(path: &Path, file: &glib::KeyFile) -> Result<(), String> {
     file.save_to_file(path).map_err(|e| e.to_string())
 }
 
+/// The user's name for the default Signal (`[default] name=`), if set.
+pub fn default_title(path: &Path) -> Option<String> {
+    let name = load(path).string("default", "name").ok()?;
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
 /// Light or dark, or follow GNOME ("system", shown as Automatic).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Appearance {

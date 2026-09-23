@@ -125,7 +125,7 @@ pub fn present(win: &Rc<MainWindow>) -> CreateDialog {
         move |entry| {
             let Some(win) = win.upgrade() else { return };
             let text = entry.text();
-            let v = validate(&win.deps.store, &text);
+            let v = win.validate_new_name(&text);
             let (line, is_error) = status(&v);
             avatar::set_name(&picture, &text);
             create.set_sensitive(v == Validation::Ok);

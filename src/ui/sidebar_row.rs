@@ -16,7 +16,7 @@ pub fn build(p: &Profile, compact: bool) -> gtk::ListBoxRow {
     };
 
     let name = gtk::Label::builder()
-        .label(&p.name)
+        .label(&p.title)
         .xalign(0.0)
         .ellipsize(gtk::pango::EllipsizeMode::End)
         .css_classes(["row-name"])
@@ -40,7 +40,7 @@ pub fn build(p: &Profile, compact: bool) -> gtk::ListBoxRow {
     text.append(&secondary);
 
     let content = gtk::Box::new(gtk::Orientation::Horizontal, if compact { 12 } else { 10 });
-    content.append(&avatar::with_status(&p.name, avatar_size, p.running, dot));
+    content.append(&avatar::with_status(&p.title, avatar_size, p.running, dot));
     if compact {
         // Text and chevron share a full-height box that carries the row
         // separator, so it starts under the text like an iOS list.
@@ -59,7 +59,7 @@ pub fn build(p: &Profile, compact: bool) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&p.name);
     row.set_child(Some(&content));
-    row.update_property(&[gtk::accessible::Property::Label(&p.name)]);
+    row.update_property(&[gtk::accessible::Property::Label(&p.title)]);
     row
 }
 
@@ -82,4 +82,13 @@ pub fn secondary_text(row: &gtk::ListBoxRow) -> String {
         .map(|l| l.text().to_string())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// The name shown in a row, for tests.
+pub fn title_text(row: &gtk::ListBoxRow) -> String {
+    super::labels_in(row)
+        .iter()
+        .find(|l| l.has_css_class("row-name"))
+        .map(|l| l.text().to_string())
+        .unwrap_or_default()
 }

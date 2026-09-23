@@ -395,6 +395,36 @@ fn main() {
         w.action_enabled("win.trash-selected"),
     );
 
+    // The default Signal can carry the user's own name for it.
+    let f = fixture(&tmp.path().join("k"), true, &["Work"], &[]);
+    let launched = f.launched.clone();
+    std::fs::create_dir_all(&f.paths.default_data_dir).unwrap();
+    std::fs::create_dir_all(f.paths.settings.parent().unwrap()).unwrap();
+    std::fs::write(&f.paths.settings, "[default]\nname=Personal\n").unwrap();
+    let w = ui::build_window(f.deps);
+    check(
+        "default shown by its own name",
+        w.sidebar_titles() == ["Personal", "Work"],
+    );
+    check("its detail uses the name", w.detail_title() == "Personal");
+    w.activate_action_for_test("open-selected");
+    check(
+        "renamed default still opens the default",
+        *launched.0.borrow() == ["(default)"],
+    );
+    let dialog = w.open_create_dialog();
+    dialog.entry.set_text("personal");
+    check(
+        "its name can't be reused for a profile",
+        !dialog.create.is_sensitive(),
+    );
+    dialog.dialog.close();
+    let w = ui::build_window(deps(&tmp.path().join("l"), true, &["Work"], &[]));
+    check(
+        "profiles are shown by their folder name",
+        w.sidebar_titles() == ["Work"],
+    );
+
     // Appearance: Automatic (follow GNOME), Light or Dark, remembered.
     let style = adw::StyleManager::default();
     style.set_color_scheme(adw::ColorScheme::PreferLight);

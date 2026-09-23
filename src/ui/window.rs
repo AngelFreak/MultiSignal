@@ -37,6 +37,8 @@ pub struct MainWindow {
     profiles: RefCell<Vec<Profile>>,
     selected: RefCell<Option<String>>,
     installed: Cell<bool>,
+    /// The user's name for the default Signal, from the settings file.
+    default_title: Option<String>,
     /// Set while the list is rebuilt, so the selection signals it fires are ignored.
     rebuilding: Cell<bool>,
 }
@@ -130,6 +132,7 @@ impl MainWindow {
             move |_| menu.unparent()
         });
 
+        let default_title = settings::default_title(&deps.store.paths.settings);
         let this = Rc::new(Self {
             window,
             deps,
@@ -144,6 +147,7 @@ impl MainWindow {
             profiles: RefCell::new(Vec::new()),
             selected: RefCell::new(None),
             installed: Cell::new(installed),
+            default_title,
             rebuilding: Cell::new(false),
         });
         this.install_actions();
@@ -165,13 +169,18 @@ impl MainWindow {
             self.update_actions();
             return;
         }
-        let profiles = match self.deps.store.load() {
+        let mut profiles = match self.deps.store.load() {
             Ok(p) => p,
             Err(e) => {
                 self.toast(&format!("Could not read your profiles: {e}"));
                 return;
             }
         };
+        if let Some(title) = &self.default_title {
+            for p in profiles.iter_mut().filter(|p| p.is_default) {
+                p.title = title.clone();
+            }
+        }
         let selected = {
             let old = self.profiles.borrow();
             let current = self.selected.borrow();
@@ -252,9 +261,9 @@ impl MainWindow {
         self.content
             .clamp
             .set_child(widgets.as_ref().map(|d| &d.root));
-        let name = profile.as_ref().map_or("", |p| p.name.as_str());
-        self.content.title.set_text(name);
-        self.content.page.set_title(name);
+        let title = profile.as_ref().map_or("", |p| p.title.as_str());
+        self.content.title.set_text(title);
+        self.content.page.set_title(title);
         *self.detail.borrow_mut() = widgets;
         self.update_actions();
     }
@@ -428,7 +437,13 @@ impl MainWindow {
             self.deps.store.launch(name)
         };
         if let Err(e) = launched {
-            self.toast(&format!("Could not open Signal ({name}): {e}"));
+            let title = self
+                .profiles
+                .borrow()
+                .iter()
+                .find(|p| p.name == name)
+                .map_or_else(|| name.to_string(), |p| p.title.clone());
+            self.toast(&format!("Could not open Signal ({title}): {e}"));
             return;
         }
         let weak = Rc::downgrade(self);
@@ -782,6 +797,27 @@ impl MainWindow {
 
     pub fn footer(&self) -> String {
         self.sidebar.footer.text().to_string()
+    }
+
+    /// The names shown in the sidebar, top to bottom.
+    pub fn sidebar_titles(&self) -> Vec<String> {
+        rows(&self.sidebar.list)
+            .map(|r| sidebar_row::title_text(&r))
+            .collect()
+    }
+
+    /// Checks a new profile name: the folder rules, plus the default
+    /// Signal's own name so two rows can't look the same.
+    pub(super) fn validate_new_name(&self, input: &str) -> create_dialog::Validation {
+        match create_dialog::validate(&self.deps.store, input) {
+            create_dialog::Validation::Ok => match &self.default_title {
+                Some(title) if title.eq_ignore_ascii_case(input.trim()) => {
+                    create_dialog::Validation::Exists(title.clone())
+                }
+                _ => create_dialog::Validation::Ok,
+            },
+            other => other,
+        }
     }
 
     pub fn sidebar_secondary(&self, name: &str) -> String {
