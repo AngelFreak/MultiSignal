@@ -4,3 +4,4 @@
 //! against a temporary directory.
 
 pub mod names;
+pub mod paths;
