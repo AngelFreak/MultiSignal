@@ -22,6 +22,10 @@ impl Launch for Recorder {
         self.0.borrow_mut().push(name.to_string());
         Ok(())
     }
+    fn launch_default(&self, _: &Paths) -> std::io::Result<()> {
+        self.0.borrow_mut().push("(default)".to_string());
+        Ok(())
+    }
 }
 
 struct Fixture {
@@ -263,4 +267,24 @@ fn launch_passes_the_profile_to_the_launcher() {
     assert!(f.store.launch("Nope").is_err());
     assert!(f.store.launch("../home").is_err());
     assert_eq!(f.launched.0.borrow().len(), 1);
+}
+
+#[test]
+fn launch_default_starts_signal_without_a_profile_folder() {
+    let f = fixture();
+    f.store.launch_default().unwrap();
+    assert_eq!(*f.launched.0.borrow(), ["(default)"]);
+}
+
+#[test]
+fn the_default_signal_can_never_be_deleted() {
+    let f = fixture();
+    let default = &f.store.paths.default_data_dir;
+    std::fs::create_dir_all(default).unwrap();
+    assert!(matches!(
+        f.store.delete(multisignal::profiles::DEFAULT_NAME),
+        Err(DeleteError::NotFound(_))
+    ));
+    assert!(default.is_dir());
+    assert_eq!(std::fs::read_dir(&f.trash).unwrap().count(), 0);
 }

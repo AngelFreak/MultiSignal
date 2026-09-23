@@ -59,6 +59,17 @@ fn real_adapters_trash_and_launch() {
         )
     );
 
+    // The default Signal starts with no profile folder argument.
+    std::fs::remove_file(&log).unwrap();
+    store.launch_default().unwrap();
+    let line = (0..100)
+        .find_map(|_| {
+            std::thread::sleep(Duration::from_millis(50));
+            std::fs::read_to_string(&log).ok()
+        })
+        .expect("stub ran for the default Signal");
+    assert_eq!(line.trim(), multisignal::paths::SNAP_DESKTOP_HINT);
+
     // And delete goes through gio for real: data and launcher.
     store.delete("Work").unwrap();
     assert!(data.join("Trash/files/Work").is_dir());

@@ -22,26 +22,32 @@ impl Trash for GioTrash {
 pub struct SetsidLauncher;
 
 impl Launch for SetsidLauncher {
-    /// `setsid -f` detaches Signal so it outlives the manager and never
-    /// becomes a zombie child of it.
     fn launch(&self, paths: &Paths, name: &str) -> io::Result<()> {
-        let status = Command::new("setsid")
-            .arg("-f")
-            .arg(&paths.signal_bin)
-            .arg(format!(
-                "--user-data-dir={}",
-                paths.profile_dir(name).display()
-            ))
-            .env("BAMF_DESKTOP_FILE_HINT", SNAP_DESKTOP_HINT)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(io::Error::other(format!("setsid exited with {status}")))
-        }
+        let data_dir = format!("--user-data-dir={}", paths.profile_dir(name).display());
+        detached(paths, &[data_dir])
+    }
+
+    fn launch_default(&self, paths: &Paths) -> io::Result<()> {
+        detached(paths, &[])
+    }
+}
+
+/// `setsid -f` detaches Signal so it outlives the manager and never becomes a
+/// zombie child of it.
+fn detached(paths: &Paths, args: &[String]) -> io::Result<()> {
+    let status = Command::new("setsid")
+        .arg("-f")
+        .arg(&paths.signal_bin)
+        .args(args)
+        .env("BAMF_DESKTOP_FILE_HINT", SNAP_DESKTOP_HINT)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!("setsid exited with {status}")))
     }
 }
 

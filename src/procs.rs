@@ -4,13 +4,24 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Data directories of running Signal processes: any process whose argv[0]
-/// is a `signal-desktop` binary and that has a `--user-data-dir=` argument.
-pub fn running_data_dirs(proc_root: &Path) -> HashSet<PathBuf> {
+/// What is running right now.
+#[derive(Debug, Default)]
+pub struct Running {
+    /// `--user-data-dir` of every Signal process (profiles in `~/Signal`).
+    pub data_dirs: HashSet<PathBuf>,
+    /// A Signal started without `--user-data-dir`: the snap's own default
+    /// profile, opened from the normal "Signal" app menu entry.
+    pub default: bool,
+}
+
+/// Scans `/proc` for Signal processes: any process whose argv[0] is a
+/// `signal-desktop` binary.
+pub fn running(proc_root: &Path) -> Running {
+    let mut found = Running::default();
     let Ok(entries) = fs::read_dir(proc_root) else {
-        return HashSet::new();
+        return found;
     };
-    entries
+    let cmdlines = entries
         .flatten()
         .filter(|e| {
             e.file_name()
@@ -18,36 +29,62 @@ pub fn running_data_dirs(proc_root: &Path) -> HashSet<PathBuf> {
                 .iter()
                 .all(u8::is_ascii_digit)
         })
-        .filter_map(|e| fs::read(e.path().join("cmdline")).ok()) // processes vanish; ignore
-        .filter_map(|raw| signal_data_dir(&raw))
-        .collect()
+        .filter_map(|e| fs::read(e.path().join("cmdline")).ok()); // processes vanish; ignore
+    for raw in cmdlines {
+        match signal_instance(&raw) {
+            Some(Instance::DataDir(dir)) => {
+                found.data_dirs.insert(dir);
+            }
+            Some(Instance::Default) => found.default = true,
+            None => {}
+        }
+    }
+    found
+}
+
+/// Data directories of running Signal processes.
+pub fn running_data_dirs(proc_root: &Path) -> HashSet<PathBuf> {
+    running(proc_root).data_dirs
 }
 
 const DATA_DIR_FLAG: &str = "--user-data-dir=";
 
-/// The data directory of a Signal process, from its raw `/proc/<pid>/cmdline`.
-fn signal_data_dir(raw: &[u8]) -> Option<PathBuf> {
+enum Instance {
+    Default,
+    DataDir(PathBuf),
+}
+
+/// Which Signal a process is, from its raw `/proc/<pid>/cmdline`.
+fn signal_instance(raw: &[u8]) -> Option<Instance> {
     let args: Vec<String> = raw
         .split(|b| *b == 0)
         .filter(|a| !a.is_empty())
         .map(|a| String::from_utf8_lossy(a).into_owned())
         .collect();
-    match args.as_slice() {
+    let (argv0, flags): (&str, Vec<String>) = match args.as_slice() {
         // Chromium (and so Signal) rewrites its command line into a single
         // space-joined string. Arguments are then separated by " --", which
         // keeps paths with spaces intact.
         [joined] if joined.contains(" --") => {
-            let argv0 = &joined[..joined.find(" --")?];
-            let flag = format!(" {DATA_DIR_FLAG}");
-            let value = &joined[joined.find(&flag)? + flag.len()..];
-            let value = value.find(" --").map_or(value, |end| &value[..end]);
-            is_signal(argv0).then(|| PathBuf::from(value))
+            let start = joined.find(" --")?;
+            let flags = joined[start + 3..]
+                .split(" --")
+                .map(|f| format!("--{f}"))
+                .collect();
+            (&joined[..start], flags)
         }
-        [argv0, rest @ ..] if is_signal(argv0) => rest
-            .iter()
-            .find_map(|a| a.strip_prefix(DATA_DIR_FLAG))
-            .map(PathBuf::from),
-        _ => None,
+        [argv0, rest @ ..] => (argv0.as_str(), rest.to_vec()),
+        [] => return None,
+    };
+    if !is_signal(argv0) {
+        return None;
+    }
+    if let Some(dir) = flags.iter().find_map(|f| f.strip_prefix(DATA_DIR_FLAG)) {
+        Some(Instance::DataDir(PathBuf::from(dir)))
+    } else if flags.iter().any(|f| f.starts_with("--type=")) {
+        None // a helper (renderer, GPU, …) of some instance
+    } else {
+        Some(Instance::Default)
     }
 }
 
@@ -141,6 +178,43 @@ mod tests {
             "a space in the path: {running:?}"
         );
         assert!(!running.contains(Path::new("/h/Signal/Chrome")));
+    }
+
+    #[test]
+    fn a_main_process_without_a_data_dir_is_the_default_signal() {
+        let tmp = tempfile::tempdir().unwrap();
+        // As the snap starts it from the normal "Signal" entry (rewritten).
+        fake_rewritten_proc(
+            tmp.path(),
+            30,
+            "/snap/signal-desktop/945/opt/Signal/signal-desktop --no-sandbox --password-store=basic --disable-gpu",
+        );
+        assert!(running(tmp.path()).default);
+    }
+
+    #[test]
+    fn a_bare_signal_command_is_the_default_signal() {
+        let tmp = tempfile::tempdir().unwrap();
+        fake_proc(tmp.path(), 31, &["/snap/bin/signal-desktop"]);
+        assert!(running(tmp.path()).default);
+    }
+
+    #[test]
+    fn helpers_and_profiles_are_not_the_default_signal() {
+        let tmp = tempfile::tempdir().unwrap();
+        fake_rewritten_proc(
+            tmp.path(),
+            32,
+            "/snap/signal-desktop/945/opt/Signal/signal-desktop --type=renderer --no-zygote",
+        );
+        fake_proc(
+            tmp.path(),
+            33,
+            &["/x/signal-desktop", "--user-data-dir=/h/Signal/A"],
+        );
+        let r = running(tmp.path());
+        assert!(!r.default);
+        assert!(r.data_dirs.contains(Path::new("/h/Signal/A")));
     }
 
     #[test]

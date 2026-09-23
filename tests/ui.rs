@@ -30,6 +30,10 @@ impl Launch for Recorder {
         self.0.borrow_mut().push(name.to_string());
         Ok(())
     }
+    fn launch_default(&self, _: &Paths) -> std::io::Result<()> {
+        self.0.borrow_mut().push("(default)".to_string());
+        Ok(())
+    }
 }
 
 /// "Installs" by flipping a flag, as a successful snap install would.
@@ -332,6 +336,63 @@ fn main() {
     check(
         "Delete key opens the trash dialog",
         w.press_delete_for_test(),
+    );
+
+    // The snap's own (default) Signal: listed first, never trashed.
+    use multisignal::profiles::DEFAULT_NAME;
+    let f = fixture(&tmp.path().join("i"), true, &["Work"], &[]);
+    let launched = f.launched.clone();
+    std::fs::create_dir_all(&f.paths.default_data_dir).unwrap();
+    let pid = f.paths.proc_root.join("300");
+    std::fs::create_dir_all(&pid).unwrap();
+    std::fs::write(
+        pid.join("cmdline"),
+        "/snap/signal-desktop/945/opt/Signal/signal-desktop --no-sandbox --disable-gpu\0",
+    )
+    .unwrap();
+    let w = ui::build_window(f.deps);
+    check(
+        "default Signal listed first",
+        w.sidebar_names() == [DEFAULT_NAME, "Work"],
+    );
+    check(
+        "default Signal selected on start",
+        w.selected().as_deref() == Some(DEFAULT_NAME),
+    );
+    check(
+        "default Signal shows Running",
+        w.sidebar_secondary(DEFAULT_NAME).starts_with("Running"),
+    );
+    check(
+        "actions are enabled on start, before any click",
+        w.action_enabled("win.open-selected"),
+    );
+    check(
+        "default Signal: Show Signal",
+        w.detail_primary_label() == "Show Signal",
+    );
+    check(
+        "default Signal: menu entry is Signal",
+        w.detail_value("Menu entry") == "Signal",
+    );
+    check(
+        "default Signal: no trash",
+        !w.action_enabled("win.trash-selected"),
+    );
+    check("default Signal: no repair", !w.action_enabled("win.repair"));
+    check(
+        "default Signal: context menu has no trash",
+        w.context_menu_labels() == ["Show Signal", "Show in Files"],
+    );
+    w.activate_action_for_test("open-selected");
+    check(
+        "default Signal: open starts the default",
+        *launched.0.borrow() == ["(default)"],
+    );
+    w.select("Work");
+    check(
+        "a profile after it can still be trashed",
+        w.action_enabled("win.trash-selected"),
     );
 
     // Task 13: install page.

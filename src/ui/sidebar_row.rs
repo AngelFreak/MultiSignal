@@ -23,7 +23,7 @@ pub fn build(p: &Profile, compact: bool) -> gtk::ListBoxRow {
         .build();
 
     let secondary = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-    if p.launchers.is_empty() {
+    if p.launchers.is_empty() && !p.is_default {
         secondary.append(&small_label("No app menu entry ·", "row-warning"));
     }
     if p.running {

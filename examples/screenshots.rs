@@ -29,6 +29,9 @@ impl Launch for NoLaunch {
     fn launch(&self, _: &Paths, _: &str) -> std::io::Result<()> {
         Ok(())
     }
+    fn launch_default(&self, _: &Paths) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 struct FixedInstaller(bool);
 impl Installer for FixedInstaller {
@@ -44,7 +47,8 @@ impl Installer for FixedInstaller {
 }
 
 /// Profiles as in the mockup: Damon (hand-made launcher, 110 MB), Personal
-/// (no launcher, 20 KB), UKR (running, 77 MB), Work (empty).
+/// (no launcher, 20 KB), UKR (running, 77 MB), Work (empty), plus the snap's
+/// default Signal (running, 3.3 GB).
 fn fixture_home(home: &Path) -> Paths {
     let mut paths = Paths::for_home(home, None);
     paths.proc_root = home.join("proc");
@@ -72,6 +76,19 @@ fn fixture_home(home: &Path) -> Paths {
             "[Desktop Entry]\nName=Signal (Damon)\nExec=env X=1 /snap/bin/signal-desktop --user-data-dir={} %U\n",
             paths.profile_dir("Damon").display()
         ),
+    )
+    .unwrap();
+    // The snap's own profile, running from the normal "Signal" entry.
+    std::fs::create_dir_all(&paths.default_data_dir).unwrap();
+    std::fs::File::create(paths.default_data_dir.join("db"))
+        .unwrap()
+        .set_len(3_300_000_000)
+        .unwrap();
+    let default_pid = paths.proc_root.join("99");
+    std::fs::create_dir_all(&default_pid).unwrap();
+    std::fs::write(
+        default_pid.join("cmdline"),
+        "/snap/signal-desktop/945/opt/Signal/signal-desktop --no-sandbox --disable-gpu\0",
     )
     .unwrap();
     let pid = paths.proc_root.join("100");
@@ -171,6 +188,9 @@ fn main() {
             let theme = if dark { "dark" } else { "light" };
 
             let w = window(&full, true, (1100, 720));
+            save(&w, &out, &format!("default-{theme}"));
+            w.select("Damon");
+            settle(300);
             save(&w, &out, &format!("desktop-{theme}"));
             w.select("UKR");
             settle(300);

@@ -13,6 +13,8 @@ pub trait Trash {
 /// Starts Signal for a profile. Real: `setsid -f`. Tests: record the call.
 pub trait Launch {
     fn launch(&self, paths: &Paths, name: &str) -> io::Result<()>;
+    /// Starts the Signal snap's own profile (no `--user-data-dir`).
+    fn launch_default(&self, paths: &Paths) -> io::Result<()>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -148,5 +150,10 @@ impl Store {
             ));
         }
         self.launcher.launch(&self.paths, name)
+    }
+
+    /// Starts (or brings forward) the default Signal.
+    pub fn launch_default(&self) -> io::Result<()> {
+        self.launcher.launch_default(&self.paths)
     }
 }

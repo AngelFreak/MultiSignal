@@ -8,7 +8,7 @@ use super::detail::{self, DetailWidgets};
 use super::install_page::InstallPage;
 use super::{Deps, button_label, push_button, sidebar_row, summary_line};
 use crate::procs;
-use crate::profiles::Profile;
+use crate::profiles::{DEFAULT_NAME, Profile};
 use crate::store::CreateError;
 use crate::system::InstallOutcome;
 use adw::prelude::*;
@@ -195,8 +195,9 @@ impl MainWindow {
             self.update_actions();
             return;
         }
-        self.render();
+        // Show the page first: render() enables actions based on it.
         self.stack.set_visible_child_name("app");
+        self.render();
     }
 
     /// Rebuilds the sidebar and detail from `profiles`, styled for the
@@ -333,8 +334,9 @@ impl MainWindow {
         };
         enable("open-selected", profile.is_some());
         enable("show-selected", profile.is_some());
-        enable("repair", profile.is_some());
-        enable("trash-selected", profile.is_some_and(|p| !p.running));
+        let own = profile.as_ref().filter(|p| !p.is_default);
+        enable("repair", own.is_some());
+        enable("trash-selected", own.is_some_and(|p| !p.running));
     }
 
     pub fn open_create_dialog(self: &Rc<Self>) -> CreateDialog {
@@ -342,7 +344,7 @@ impl MainWindow {
     }
 
     pub fn open_trash_dialog(self: &Rc<Self>) -> Option<TrashDialog> {
-        let profile = self.selected_profile()?;
+        let profile = self.selected_profile().filter(|p| !p.is_default)?;
         if profile.running {
             self.toast(&crate::store::DeleteError::Running(profile.name).to_string());
             return None;
@@ -396,7 +398,12 @@ impl MainWindow {
     /// Starts (or, if it's running, brings forward) Signal for a profile, and
     /// refreshes soon after so "Running" appears promptly.
     fn launch(self: &Rc<Self>, name: &str) {
-        if let Err(e) = self.deps.store.launch(name) {
+        let launched = if name == DEFAULT_NAME {
+            self.deps.store.launch_default()
+        } else {
+            self.deps.store.launch(name)
+        };
+        if let Err(e) = launched {
             self.toast(&format!("Could not open Signal ({name}): {e}"));
             return;
         }
@@ -663,7 +670,8 @@ impl MainWindow {
     }
 
     fn context_model(&self) -> gio::Menu {
-        let running = self.selected_profile().is_some_and(|p| p.running);
+        let profile = self.selected_profile();
+        let running = profile.as_ref().is_some_and(|p| p.running);
         let open = gio::Menu::new();
         open.append(
             Some(if running {
@@ -674,11 +682,13 @@ impl MainWindow {
             Some("win.open-selected"),
         );
         open.append(Some("Show in Files"), Some("win.show-selected"));
-        let trash = gio::Menu::new();
-        trash.append(Some("Move to Trash…"), Some("win.trash-selected"));
         let menu = gio::Menu::new();
         menu.append_section(None, &open);
-        menu.append_section(None, &trash);
+        if !profile.is_some_and(|p| p.is_default) {
+            let trash = gio::Menu::new();
+            trash.append(Some("Move to Trash…"), Some("win.trash-selected"));
+            menu.append_section(None, &trash);
+        }
         menu
     }
 

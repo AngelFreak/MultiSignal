@@ -56,10 +56,16 @@ pub fn build(p: &Profile, compact: bool) -> DetailWidgets {
 
     let app_menu = card();
     let mut repair = None;
-    match p.launchers.first() {
-        Some(file) => {
-            let name =
-                launcher::display_name(file).unwrap_or_else(|| format!("Signal ({})", p.name));
+    // The default Signal's entry is the snap's own "Signal".
+    let menu_name = if p.is_default {
+        Some("Signal".to_string())
+    } else {
+        p.launchers.first().map(|file| {
+            launcher::display_name(file).unwrap_or_else(|| format!("Signal ({})", p.name))
+        })
+    };
+    match menu_name {
+        Some(name) => {
             let value = value_label(&name);
             let check = gtk::Image::from_icon_name("object-select-symbolic");
             check.add_css_class("success-icon");
@@ -87,6 +93,19 @@ pub fn build(p: &Profile, compact: bool) -> DetailWidgets {
     }
     values.push(add_value_row(&app_menu, "Launcher file", &launcher_file(p)));
     root.append(&section("App Menu", &app_menu));
+
+    if p.is_default {
+        root.append(&footnote(
+            "This is the Signal snap’s own profile, opened from the Signal entry in your app menu. It stays where the snap keeps it, so it can’t be moved to the Trash here.",
+        ));
+        return DetailWidgets {
+            root,
+            title,
+            primary,
+            repair,
+            values,
+        };
+    }
 
     let danger = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let trash_card = card();
@@ -255,6 +274,11 @@ fn footnote(text: &str) -> gtk::Label {
 
 /// "signal-desktop-damon.desktop · made by hand", or "—" without a launcher.
 fn launcher_file(p: &Profile) -> String {
+    if p.is_default {
+        let snap_entry = Path::new(crate::paths::SNAP_DESKTOP_HINT);
+        let file_name = snap_entry.file_name().unwrap_or_default().to_string_lossy();
+        return format!("{file_name} · from the snap");
+    }
     let Some(file) = p.launchers.first() else {
         return "—".to_string();
     };

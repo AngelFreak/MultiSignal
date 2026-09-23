@@ -6,6 +6,10 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// The name shown for the snap's own profile. Not a valid profile name, so it
+/// never collides with a folder in `~/Signal`, and delete/repair refuse it.
+pub const DEFAULT_NAME: &str = "Signal (default)";
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Profile {
     pub name: String,
@@ -13,6 +17,9 @@ pub struct Profile {
     pub size_bytes: u64,
     pub running: bool,
     pub launchers: Vec<PathBuf>,
+    /// The Signal snap's own profile (opened from the normal "Signal" entry),
+    /// shown for completeness; it is never created, deleted or repaired here.
+    pub is_default: bool,
 }
 
 pub fn list_names(paths: &Paths) -> io::Result<Vec<String>> {
@@ -42,21 +49,33 @@ pub fn existing_ignoring_case(paths: &Paths, name: &str) -> Option<String> {
         .find(|n| n.eq_ignore_ascii_case(name))
 }
 
+/// The default Signal first (when the snap has data), then every profile in
+/// `~/Signal`.
 pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
-    let running = procs::running_data_dirs(&paths.proc_root);
-    list_names(paths)?
-        .into_iter()
-        .map(|name| {
-            let dir = paths.profile_dir(&name);
-            Ok(Profile {
-                size_bytes: dir_size(&dir),
-                running: running.contains(&dir),
-                launchers: launcher::find(paths, &name)?,
-                dir,
-                name,
-            })
-        })
-        .collect()
+    let running = procs::running(&paths.proc_root);
+    let mut profiles = Vec::new();
+    if paths.default_data_dir.is_dir() {
+        profiles.push(Profile {
+            name: DEFAULT_NAME.to_string(),
+            dir: paths.default_data_dir.clone(),
+            size_bytes: dir_size(&paths.default_data_dir),
+            running: running.default,
+            launchers: Vec::new(),
+            is_default: true,
+        });
+    }
+    for name in list_names(paths)? {
+        let dir = paths.profile_dir(&name);
+        profiles.push(Profile {
+            size_bytes: dir_size(&dir),
+            running: running.data_dirs.contains(&dir),
+            launchers: launcher::find(paths, &name)?,
+            is_default: false,
+            dir,
+            name,
+        });
+    }
+    Ok(profiles)
 }
 
 /// Total size of regular files, not following symlinks. Unreadable entries
@@ -131,6 +150,39 @@ mod tests {
         assert_eq!(ukr.size_bytes, 5000);
         assert!(ukr.running);
         assert_eq!(ukr.launchers, vec![p.own_launcher("UKR")]);
+    }
+
+    #[test]
+    fn lists_the_default_signal_first_when_the_snap_has_data() {
+        let (_t, p) = setup();
+        std::fs::create_dir_all(p.signal_base.join("Alpha")).unwrap();
+        std::fs::create_dir_all(&p.default_data_dir).unwrap();
+        std::fs::write(p.default_data_dir.join("db"), vec![0u8; 700]).unwrap();
+        let pid = p.proc_root.join("50");
+        std::fs::create_dir_all(&pid).unwrap();
+        std::fs::write(pid.join("cmdline"), "/snap/bin/signal-desktop\0").unwrap();
+
+        let profiles = load_all(&p).unwrap();
+        let names: Vec<_> = profiles.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, [DEFAULT_NAME, "Alpha"]);
+        let default = &profiles[0];
+        assert!(default.is_default);
+        assert!(default.running);
+        assert_eq!(default.size_bytes, 700);
+        assert_eq!(default.dir, p.default_data_dir);
+        assert!(!profiles[1].is_default);
+    }
+
+    #[test]
+    fn no_default_entry_without_snap_data() {
+        let (_t, p) = setup();
+        std::fs::create_dir_all(p.signal_base.join("Alpha")).unwrap();
+        assert!(load_all(&p).unwrap().iter().all(|p| !p.is_default));
+    }
+
+    #[test]
+    fn the_default_name_can_never_be_a_profile_folder() {
+        assert!(!names::is_valid(DEFAULT_NAME));
     }
 
     #[test]
