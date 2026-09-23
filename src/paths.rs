@@ -19,8 +19,8 @@ pub struct Paths {
     pub signal_bin: PathBuf,
     /// `/proc`, replaced by a fake tree in tests.
     pub proc_root: PathBuf,
-    /// Remembered window size (`$XDG_CONFIG_HOME/multisignal/window.ini`).
-    pub window_state: PathBuf,
+    /// Window size and appearance (`$XDG_CONFIG_HOME/multisignal/settings.ini`).
+    pub settings: PathBuf,
 }
 
 impl Paths {
@@ -32,7 +32,7 @@ impl Paths {
             applications: data.join("applications"),
             signal_bin: PathBuf::from("/snap/bin/signal-desktop"),
             proc_root: PathBuf::from("/proc"),
-            window_state: home.join(".config/multisignal/window.ini"),
+            settings: home.join(".config/multisignal/settings.ini"),
         }
     }
 
@@ -43,7 +43,7 @@ impl Paths {
         let xdg = std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty());
         let mut paths = Self::for_home(Path::new(&home), xdg.as_deref().map(Path::new));
         if let Some(config) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
-            paths.window_state = Path::new(&config).join("multisignal/window.ini");
+            paths.settings = Path::new(&config).join("multisignal/settings.ini");
         }
         if let Some(bin) = std::env::var_os("MULTISIGNAL_SIGNAL_BIN") {
             paths.signal_bin = bin.into();
@@ -90,11 +90,8 @@ mod tests {
     }
 
     #[test]
-    fn window_state_lives_in_the_config_dir() {
+    fn settings_live_in_the_config_dir() {
         let p = Paths::for_home(Path::new("/h"), None);
-        assert_eq!(
-            p.window_state,
-            Path::new("/h/.config/multisignal/window.ini")
-        );
+        assert_eq!(p.settings, Path::new("/h/.config/multisignal/settings.ini"));
     }
 }

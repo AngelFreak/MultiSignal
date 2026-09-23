@@ -6,6 +6,7 @@ pub mod create_dialog;
 pub mod delete_dialog;
 mod detail;
 mod install_page;
+mod settings;
 mod sidebar_row;
 mod window;
 

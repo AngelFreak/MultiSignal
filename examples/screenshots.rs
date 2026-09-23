@@ -130,7 +130,7 @@ fn settle(ms: u64) {
 }
 
 fn save(w: &MainWindow, out: &Path, name: &str) {
-    save_window(w.window.upcast_ref(), out, name);
+    save_window(&w.window, out, name);
 }
 
 /// A dialog is drawn in the main window, or, when that window can't host it
@@ -142,7 +142,9 @@ fn save_dialog(w: &MainWindow, dialog: &adw::Dialog, out: &Path, name: &str) {
     }
 }
 
-fn save_window(window: &gtk::Window, out: &Path, name: &str) {
+/// Draws any surface (a window or a popover) to PNG.
+fn save_window(window: &impl IsA<gtk::Native>, out: &Path, name: &str) {
+    let window = window.upcast_ref::<gtk::Native>();
     let (width, height) = (window.width() as f32, window.height() as f32);
     let paintable = gtk::WidgetPaintable::new(Some(window));
     let snapshot = gtk::Snapshot::new();
@@ -192,6 +194,11 @@ fn main() {
             w.select("Damon");
             settle(300);
             save(&w, &out, &format!("desktop-{theme}"));
+            if let Some(menu) = w.open_more_menu_for_test() {
+                settle(400);
+                save_window(&menu, &out, &format!("more-menu-{theme}"));
+                menu.popdown();
+            }
             w.select("UKR");
             settle(300);
             save(&w, &out, &format!("running-{theme}"));

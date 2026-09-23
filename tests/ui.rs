@@ -395,6 +395,55 @@ fn main() {
         w.action_enabled("win.trash-selected"),
     );
 
+    // Appearance: Automatic (follow GNOME), Light or Dark, remembered.
+    let style = adw::StyleManager::default();
+    style.set_color_scheme(adw::ColorScheme::PreferLight);
+    let home = tmp.path().join("j");
+    let f = fixture(&home, true, &["Work"], &[]);
+    let settings = f.paths.settings.clone();
+    let w = ui::build_window(f.deps);
+    check(
+        "no saved appearance leaves the theme alone",
+        style.color_scheme() == adw::ColorScheme::PreferLight,
+    );
+    check(
+        "the ⋯ menu offers Automatic, Light and Dark",
+        ["Automatic", "Light", "Dark"]
+            .iter()
+            .all(|l| w.more_menu_labels().iter().any(|m| m == l)),
+    );
+    check("Automatic is chosen by default", w.appearance() == "system");
+    w.set_appearance_for_test("dark");
+    check(
+        "Dark forces the dark style",
+        style.color_scheme() == adw::ColorScheme::ForceDark,
+    );
+    check("Dark is chosen", w.appearance() == "dark");
+    let saved = std::fs::read_to_string(&settings).unwrap_or_default();
+    check("the choice is saved", saved.contains("mode=dark"));
+    style.set_color_scheme(adw::ColorScheme::Default);
+    let w = ui::build_window(fixture(&home, true, &["Work"], &[]).deps);
+    check(
+        "the saved choice is applied on start",
+        style.color_scheme() == adw::ColorScheme::ForceDark && w.appearance() == "dark",
+    );
+    w.set_appearance_for_test("light");
+    check(
+        "Light forces the light style",
+        style.color_scheme() == adw::ColorScheme::ForceLight,
+    );
+    w.set_appearance_for_test("system");
+    check(
+        "Automatic follows GNOME again",
+        style.color_scheme() == adw::ColorScheme::Default,
+    );
+    w.save_window_state_for_test();
+    let saved = std::fs::read_to_string(&settings).unwrap_or_default();
+    check(
+        "saving the window size keeps the appearance",
+        saved.contains("mode=system") && saved.contains("width="),
+    );
+
     // Task 13: install page.
     let w = ui::build_window(deps(&tmp.path().join("h"), false, &[], &[]));
     check("install page shown", w.visible_page() == "install");

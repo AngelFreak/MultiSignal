@@ -1,7 +1,8 @@
 /* Apple-style skin over libadwaita. Colours come from style-light.css /
    style-dark.css; sizes follow the approved mockup. */
 
-window, dialog { font-family: "Inter", "Ubuntu Sans", sans-serif; }
+window, dialog, popover { font-family: "Inter", "Ubuntu Sans", sans-serif; }
+popover.menu > contents { border-radius: 10px; }
 
 /* Bars: flat; the content bar shows a hairline and the title only after scrolling */
 headerbar { background: transparent; box-shadow: none; }

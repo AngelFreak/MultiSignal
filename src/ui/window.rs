@@ -6,6 +6,7 @@ use super::create_dialog::{self, CreateDialog};
 use super::delete_dialog::{self, TrashDialog};
 use super::detail::{self, DetailWidgets};
 use super::install_page::InstallPage;
+use super::settings::{self, Appearance};
 use super::{Deps, button_label, push_button, sidebar_row, summary_line};
 use crate::procs;
 use crate::profiles::{DEFAULT_NAME, Profile};
@@ -306,6 +307,29 @@ impl MainWindow {
         self.add_action("repair", |this| this.repair(true));
         self.add_action("repair-all", |this| this.repair(false));
         self.add_action("about", |this| this.show_about());
+
+        // Only a saved choice is applied, so by default the app follows GNOME
+        // without touching the style manager.
+        let saved = Appearance::load(&self.deps.store.paths.settings);
+        if let Some(appearance) = saved {
+            appearance.apply();
+        }
+        let current = saved.unwrap_or(Appearance::System);
+        let appearance = gio::SimpleAction::new_stateful(
+            "appearance",
+            Some(glib::VariantTy::STRING),
+            &current.id().to_variant(),
+        );
+        let weak = Rc::downgrade(self);
+        appearance.connect_activate(move |_, target| {
+            let chosen = target
+                .and_then(|t| t.get::<String>())
+                .and_then(|id| Appearance::from_id(&id));
+            if let (Some(this), Some(chosen)) = (weak.upgrade(), chosen) {
+                this.set_appearance(chosen);
+            }
+        });
+        self.window.add_action(&appearance);
     }
 
     fn add_action(self: &Rc<Self>, name: &str, run: impl Fn(&Rc<Self>) + 'static) {
@@ -695,11 +719,7 @@ impl MainWindow {
     // Window size memory -------------------------------------------------------
 
     fn restore_window_state(&self) {
-        let file = glib::KeyFile::new();
-        let path = &self.deps.store.paths.window_state;
-        if file.load_from_file(path, glib::KeyFileFlags::NONE).is_err() {
-            return; // first run, or unreadable: keep the defaults
-        }
+        let file = settings::load(&self.deps.store.paths.settings);
         if let (Ok(w), Ok(h)) = (
             file.integer("window", "width"),
             file.integer("window", "height"),
@@ -713,23 +733,31 @@ impl MainWindow {
         }
     }
 
+    /// Updates the window keys and keeps everything else in the file.
     fn save_window_state(&self) {
-        let file = glib::KeyFile::new();
+        let path = &self.deps.store.paths.settings;
+        let file = settings::load(path);
         let (w, h) = self.window.default_size();
         file.set_integer("window", "width", w);
         file.set_integer("window", "height", h);
         file.set_boolean("window", "maximized", self.window.is_maximized());
-        let path = &self.deps.store.paths.window_state;
-        let saved = path
-            .parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .map_err(|e| e.to_string())
-            .and_then(|()| file.save_to_file(path).map_err(|e| e.to_string()));
-        if let Err(e) = saved {
+        if let Err(e) = settings::save(path, &file) {
             eprintln!(
                 "multisignal: could not save the window size to {}: {e}",
                 path.display()
             );
+        }
+    }
+
+    /// Applies and remembers Automatic, Light or Dark.
+    fn set_appearance(&self, appearance: Appearance) {
+        appearance.apply();
+        if let Some(action) = self.window.lookup_action("appearance") {
+            action.change_state(&appearance.id().to_variant());
+        }
+        let path = &self.deps.store.paths.settings;
+        if let Err(e) = appearance.save(path) {
+            self.toast(&format!("Could not save the appearance: {e}"));
         }
     }
 
@@ -807,6 +835,41 @@ impl MainWindow {
 
     pub fn activate_action_for_test(&self, name: &str) {
         gio::prelude::ActionGroupExt::activate_action(&self.window, name, None);
+    }
+
+    /// The chosen appearance: "system", "light" or "dark".
+    pub fn appearance(&self) -> String {
+        self.window
+            .lookup_action("appearance")
+            .and_then(|a| a.state())
+            .and_then(|s| s.get::<String>())
+            .unwrap_or_default()
+    }
+
+    pub fn more_menu_labels(&self) -> Vec<String> {
+        self.content
+            .more
+            .menu_model()
+            .map(|m| menu_labels(&m))
+            .unwrap_or_default()
+    }
+
+    /// Opens the "⋯" menu of the detail bar and returns its popover.
+    pub fn open_more_menu_for_test(&self) -> Option<gtk::Popover> {
+        self.content.more.popup();
+        self.content.more.popover()
+    }
+
+    pub fn set_appearance_for_test(&self, id: &str) {
+        gio::prelude::ActionGroupExt::activate_action(
+            &self.window,
+            "appearance",
+            Some(&id.to_variant()),
+        );
+    }
+
+    pub fn save_window_state_for_test(&self) {
+        self.save_window_state();
     }
 
     pub fn set_collapsed_for_test(&self, collapsed: bool) {
@@ -1008,17 +1071,30 @@ fn new_profile_button() -> gtk::Button {
 fn more_menu_button() -> gtk::MenuButton {
     let repair = gio::Menu::new();
     repair.append(Some("Repair App Menu Entries"), Some("win.repair-all"));
+    let appearance = gio::Menu::new();
+    for choice in Appearance::ALL {
+        appearance.append(
+            Some(choice.label()),
+            Some(&format!("win.appearance::{}", choice.id())),
+        );
+    }
     let about = gio::Menu::new();
     about.append(Some("About Signal Profiles"), Some("win.about"));
     let menu = gio::Menu::new();
     menu.append_section(None, &repair);
+    menu.append_section(Some("Appearance"), &appearance);
     menu.append_section(None, &about);
-    gtk::MenuButton::builder()
+    let button = gtk::MenuButton::builder()
         .icon_name("view-more-horizontal-symbolic")
         .menu_model(&menu)
         .tooltip_text("More")
         .css_classes(["flat", "accent-icon"])
-        .build()
+        .build();
+    // Desktop menus drop down without a pointer arrow.
+    if let Some(popover) = button.popover() {
+        popover.set_has_arrow(false);
+    }
+    button
 }
 
 fn rows(list: &gtk::ListBox) -> impl Iterator<Item = gtk::ListBoxRow> + '_ {
