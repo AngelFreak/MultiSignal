@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Signal Profiles
+Comment=Run several Signal accounts side by side
+Exec=multisignal
+Icon=system-users
+Terminal=false
+Categories=Network;InstantMessaging;
+Keywords=Signal;profiles;accounts;messenger;
+StartupNotify=true
