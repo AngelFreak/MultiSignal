@@ -1,7 +1,7 @@
 //! Profiles are the directories in `~/Signal`, not the launchers, so profiles
 //! with a missing or hand-made launcher are still found.
 
-use crate::{launcher, names, paths::Paths, procs};
+use crate::{launcher, lock, names, paths::Paths, procs};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -23,6 +23,8 @@ pub struct Profile {
     /// The Signal snap's own profile (opened from the normal "Signal" entry),
     /// shown for completeness; it is never created, deleted or repaired here.
     pub is_default: bool,
+    /// The default Signal's menu entry is hidden (see `lock`).
+    pub locked: bool,
 }
 
 pub fn list_names(paths: &Paths) -> io::Result<Vec<String>> {
@@ -52,12 +54,15 @@ pub fn existing_ignoring_case(paths: &Paths, name: &str) -> Option<String> {
         .find(|n| n.eq_ignore_ascii_case(name))
 }
 
-/// The default Signal first (when the snap has data), then every profile in
+/// The default Signal first (when the snap has data or it is locked), then
+/// every profile in
 /// `~/Signal`.
 pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
     let running = procs::running(&paths.proc_root);
     let mut profiles = Vec::new();
-    if paths.default_data_dir.is_dir() {
+    // A locked default stays listed even with no data, so it can be unlocked.
+    let locked = lock::is_locked(paths);
+    if paths.default_data_dir.is_dir() || locked {
         profiles.push(Profile {
             name: DEFAULT_NAME.to_string(),
             title: DEFAULT_NAME.to_string(),
@@ -66,6 +71,7 @@ pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
             running: running.default,
             launchers: Vec::new(),
             is_default: true,
+            locked,
         });
     }
     for name in list_names(paths)? {
@@ -75,6 +81,7 @@ pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
             running: running.data_dirs.contains(&dir),
             launchers: launcher::find(paths, &name)?,
             is_default: false,
+            locked: false,
             title: name.clone(),
             dir,
             name,
@@ -178,6 +185,16 @@ mod tests {
         assert_eq!(default.size_bytes, 700);
         assert_eq!(default.dir, p.default_data_dir);
         assert!(!profiles[1].is_default);
+    }
+
+    #[test]
+    fn a_locked_default_is_listed_even_without_data() {
+        let (_t, p) = setup();
+        crate::lock::lock(&p).unwrap();
+        let profiles = load_all(&p).unwrap();
+        assert_eq!(profiles.len(), 1);
+        assert!(profiles[0].is_default && profiles[0].locked);
+        assert_eq!(profiles[0].size_bytes, 0);
     }
 
     #[test]

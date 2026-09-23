@@ -1,6 +1,6 @@
 //! Create, delete, repair and launch profiles.
 
-use crate::{launcher, names, paths::Paths, procs, profiles};
+use crate::{launcher, lock, names, paths::Paths, procs, profiles};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -199,8 +199,23 @@ impl Store {
         self.launcher.launch(&self.paths, name)
     }
 
-    /// Starts (or brings forward) the default Signal.
+    /// Starts (or brings forward) the default Signal, unless it's locked.
     pub fn launch_default(&self) -> io::Result<()> {
+        if lock::is_locked(&self.paths) {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "the default Signal is locked; unlock it first",
+            ));
+        }
         self.launcher.launch_default(&self.paths)
+    }
+
+    /// Hides the snap's Signal entry so the default isn't opened by accident.
+    pub fn lock_default(&self) -> io::Result<()> {
+        lock::lock(&self.paths)
+    }
+
+    pub fn unlock_default(&self) -> io::Result<()> {
+        lock::unlock(&self.paths)
     }
 }

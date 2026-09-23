@@ -65,6 +65,15 @@ pub fn build(p: &Profile, compact: bool) -> DetailWidgets {
         })
     };
     match menu_name {
+        // A locked default's entry is hidden from the app menu.
+        Some(_) if p.locked => {
+            let value = gtk::Label::builder()
+                .label("Hidden (locked)")
+                .css_classes(["row-warning-value"])
+                .build();
+            add_row(&app_menu, "Menu entry", &value);
+            values.push(("Menu entry", value));
+        }
         Some(name) => {
             let value = value_label(&name);
             let check = gtk::Image::from_icon_name("object-select-symbolic");
@@ -96,25 +105,25 @@ pub fn build(p: &Profile, compact: bool) -> DetailWidgets {
 
     if p.is_default {
         let actions = gtk::Box::new(gtk::Orientation::Vertical, 6);
-        let move_card = card();
-        let move_row = gtk::ListBoxRow::builder()
-            .child(
-                &gtk::Label::builder()
-                    .label("Move to Profile…")
-                    .xalign(0.0)
-                    .css_classes(["action-row-text"])
-                    .build(),
-            )
-            .activatable(true)
-            .action_name("win.adopt-default")
-            .build();
-        move_card.append(&move_row);
-        actions.append(&move_card);
-        actions.append(&footnote(if p.running {
-            "Quit the default Signal to move it. Moving turns it into a normal profile and leaves the default empty."
+        let default_card = card();
+        default_card.append(&action_row("Move to Profile…", "win.adopt-default"));
+        default_card.append(&if p.locked {
+            action_row("Unlock Default Signal", "win.unlock-default")
         } else {
-            "This is the Signal snap’s own profile, opened from the Signal entry in your app menu. Moving it turns it into a normal profile with its own menu entry and leaves the default empty."
-        }));
+            action_row("Lock Default Signal", "win.lock-default")
+        });
+        actions.append(&default_card);
+        let mut note = String::from(if p.running {
+            "Quit the default Signal to move it. "
+        } else {
+            "This is the Signal snap’s own profile, opened from the Signal entry in your app menu. "
+        });
+        note.push_str(if p.locked {
+            "It’s locked: that entry is hidden and Signal Profiles won’t open it, so it isn’t used by accident."
+        } else {
+            "Moving turns it into a normal profile and leaves the default empty; locking hides its entry so it isn’t used by accident."
+        });
+        actions.append(&footnote(&note));
         root.append(&actions);
         return DetailWidgets {
             root,
@@ -169,7 +178,13 @@ fn hero(p: &Profile, compact: bool) -> (gtk::Box, gtk::Label, gtk::Button) {
 
     let dot = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     dot.add_css_class("status-dot-small");
-    let status_text = gtk::Label::new(Some(if p.running { "Running" } else { "Not running" }));
+    let status_text = gtk::Label::new(Some(if p.running {
+        "Running"
+    } else if p.locked {
+        "Locked"
+    } else {
+        "Not running"
+    }));
     let status = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     status.add_css_class(if p.running {
         "status-running"
@@ -230,6 +245,21 @@ fn hero(p: &Profile, compact: bool) -> (gtk::Box, gtk::Label, gtk::Button) {
         hero
     };
     (hero, title, primary)
+}
+
+/// A card row that runs `action` when activated, in link colour.
+fn action_row(label: &str, action: &str) -> gtk::ListBoxRow {
+    gtk::ListBoxRow::builder()
+        .child(
+            &gtk::Label::builder()
+                .label(label)
+                .xalign(0.0)
+                .css_classes(["action-row-text"])
+                .build(),
+        )
+        .activatable(true)
+        .action_name(action)
+        .build()
 }
 
 fn card() -> gtk::ListBox {

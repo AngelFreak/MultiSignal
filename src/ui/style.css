@@ -28,6 +28,8 @@ headerbar button.back-button { color: @accent_color; font-size: 15px; padding: 0
 .row-name { font-size: 14px; font-weight: 500; }
 .row-secondary { font-size: 12px; color: @secondary_fg; }
 .row-warning { font-size: 12px; color: @warning_color; }
+.row-locked { font-size: 12px; font-weight: 500; color: @secondary_fg; }
+.navigation-sidebar > row:selected .row-locked { color: white; }
 .status-running { font-size: 12px; font-weight: 500; color: @success_text; }
 
 /* Folded list: large title, rows in a card, chevrons */

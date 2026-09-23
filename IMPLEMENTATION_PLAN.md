@@ -21,7 +21,7 @@ Instead Signal Profiles' own desktop entry claims the two schemes and routes.
 **Goal**: `lock` module writes/removes a per-user override `~/.local/share/applications/signal-desktop_signal-desktop.desktop` with `Hidden=true` (marked `X-MultiSignal-Lock=true`); UI shows Locked, disables Open, offers Lock/Unlock; the default row stays visible while locked even with no data.
 **Success Criteria**: with the override, gio no longer finds the snap's entry; unlock removes only our own override.
 **Tests**: `lock` unit tests; `tests/lock.rs` (own binary, sandboxed XDG dirs) proves GIO hides the entry; ui lock/unlock checks.
-**Status**: Not Started
+**Status**: Complete
 
 ## Stage 3: Route Signal links
 **Goal**: the app's desktop entry claims `x-scheme-handler/sgnl` and `x-scheme-handler/signalcaptcha` (`Exec=multisignal %u`, `HANDLES_OPEN`); a GTK-free `route()` picks the single running profile, else the window asks; delivery runs `signal-desktop [--user-data-dir=…] <link>` so the running instance receives it. First run makes the app the default handler; "Handle Signal Links" in ⋯ toggles it.

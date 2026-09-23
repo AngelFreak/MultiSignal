@@ -479,6 +479,43 @@ fn main() {
         !w.action_enabled("win.adopt-default")
     });
 
+    // Locking the default Signal hides its menu entry and blocks opening it.
+    let f = fixture(&tmp.path().join("n"), true, &["Work"], &[]);
+    let paths = f.paths.clone();
+    std::fs::create_dir_all(&paths.default_data_dir).unwrap();
+    let w = ui::build_window(f.deps);
+    w.select(DEFAULT_NAME);
+    check(
+        "unlocked default can be opened",
+        w.action_enabled("win.open-selected"),
+    );
+    w.activate_action_for_test("lock-default");
+    check(
+        "Lock hides the snap's entry",
+        multisignal::lock::is_locked(&paths),
+    );
+    check(
+        "locked default says so",
+        w.sidebar_secondary(DEFAULT_NAME).starts_with("Locked"),
+    );
+    check(
+        "locked default can't be opened",
+        !w.action_enabled("win.open-selected"),
+    );
+    check(
+        "locked default: Unlock offered",
+        !w.action_enabled("win.lock-default"),
+    );
+    w.activate_action_for_test("unlock-default");
+    check(
+        "Unlock shows it again",
+        !multisignal::lock::is_locked(&paths),
+    );
+    check(
+        "unlocked again: can be opened",
+        w.action_enabled("win.open-selected"),
+    );
+
     // Appearance: Automatic (follow GNOME), Light or Dark, remembered.
     let style = adw::StyleManager::default();
     style.set_color_scheme(adw::ColorScheme::PreferLight);

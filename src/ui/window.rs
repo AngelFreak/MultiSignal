@@ -318,6 +318,8 @@ impl MainWindow {
         self.add_action("repair", |this| this.repair(true));
         self.add_action("repair-all", |this| this.repair(false));
         self.add_action("about", |this| this.show_about());
+        self.add_action("lock-default", |this| this.set_default_locked(true));
+        self.add_action("unlock-default", |this| this.set_default_locked(false));
         self.add_action("adopt-default", |this| {
             this.open_adopt_dialog();
         });
@@ -370,7 +372,7 @@ impl MainWindow {
                 action.set_enabled(on);
             }
         };
-        enable("open-selected", profile.is_some());
+        enable("open-selected", profile.as_ref().is_some_and(|p| !p.locked));
         enable("show-selected", profile.is_some());
         let own = profile.as_ref().filter(|p| !p.is_default);
         enable("repair", own.is_some());
@@ -379,6 +381,9 @@ impl MainWindow {
             .as_ref()
             .is_some_and(|p| p.is_default && !p.running && p.dir.is_dir());
         enable("adopt-default", stopped_default);
+        let default = profile.as_ref().filter(|p| p.is_default);
+        enable("lock-default", default.is_some_and(|p| !p.locked));
+        enable("unlock-default", default.is_some_and(|p| p.locked));
     }
 
     pub fn open_create_dialog(self: &Rc<Self>) -> CreateDialog {
@@ -420,6 +425,28 @@ impl MainWindow {
         self.reload();
         self.toast(&format!("The default Signal is now the profile “{name}”"));
         Ok(name)
+    }
+
+    /// Hides or shows the snap's Signal entry.
+    fn set_default_locked(&self, locked: bool) {
+        let (result, done) = if locked {
+            (
+                self.deps.store.lock_default(),
+                "The Signal entry is hidden from your app menu",
+            )
+        } else {
+            (
+                self.deps.store.unlock_default(),
+                "The Signal entry is back in your app menu",
+            )
+        };
+        match result {
+            Ok(()) => {
+                self.reload();
+                self.toast(done);
+            }
+            Err(e) => self.toast(&format!("Could not change the Signal entry: {e}")),
+        }
     }
 
     pub fn open_trash_dialog(self: &Rc<Self>) -> Option<TrashDialog> {

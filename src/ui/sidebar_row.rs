@@ -23,6 +23,9 @@ pub fn build(p: &Profile, compact: bool) -> gtk::ListBoxRow {
         .build();
 
     let secondary = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    if p.locked {
+        secondary.append(&small_label("Locked ·", "row-locked"));
+    }
     if p.launchers.is_empty() && !p.is_default {
         secondary.append(&small_label("No app menu entry ·", "row-warning"));
     }
@@ -75,9 +78,14 @@ pub fn secondary_text(row: &gtk::ListBoxRow) -> String {
     super::labels_in(row)
         .iter()
         .filter(|l| {
-            ["row-warning", "status-running", "row-secondary"]
-                .iter()
-                .any(|c| l.has_css_class(c))
+            [
+                "row-locked",
+                "row-warning",
+                "status-running",
+                "row-secondary",
+            ]
+            .iter()
+            .any(|c| l.has_css_class(c))
         })
         .map(|l| l.text().to_string())
         .collect::<Vec<_>>()

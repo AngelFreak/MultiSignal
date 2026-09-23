@@ -354,3 +354,14 @@ fn adopt_default_needs_default_data() {
     ));
     assert!(!f.store.paths.profile_dir("Personal").exists());
 }
+
+#[test]
+fn a_locked_default_is_never_launched() {
+    let f = fixture();
+    f.store.lock_default().unwrap();
+    assert!(f.store.launch_default().is_err());
+    assert!(f.launched.0.borrow().is_empty());
+    f.store.unlock_default().unwrap();
+    f.store.launch_default().unwrap();
+    assert_eq!(*f.launched.0.borrow(), ["(default)"]);
+}
