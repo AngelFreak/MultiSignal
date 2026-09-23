@@ -23,7 +23,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libgtk-4-dev libadwaita-1-dev dpkg-dev desktop-file-utils xvfb
+            libgtk-4-dev libadwaita-1-dev dpkg-dev desktop-file-utils xvfb libglib2.0-bin
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -38,7 +38,8 @@ jobs:
             exit 1
           fi
 
-      # The UI tests build real GTK windows, so they need a display.
+      # The UI tests build real GTK windows, so they need a display; the
+      # multisignal.sh tests use the gio tool (libglib2.0-bin) for the Trash.
       - name: Test
         run: xvfb-run -a cargo test --locked
 
