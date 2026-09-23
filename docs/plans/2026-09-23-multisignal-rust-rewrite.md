@@ -1791,6 +1791,10 @@ Verify: `desktop-file-validate data/*.desktop`, `make install`, open "Signal Pro
 | test_repair_launchers | `store::repair_updates_ours_creates_missing_and_skips_hand_made` |
 | test_install_* | ui install-page checks with `FakeInstaller` |
 | test_lists_grow_with_profile_count / main_menu_shows_every_action | n/a: scrolling window, verified by the smoke screenshots |
+| test_menu_cancel_exits_cleanly / test_create_prompt_has_no_underscore | n/a: zenity-only behaviour |
+| test_delete_skips_running_profile_when_asked / test_delete_lists_names_with_commas | n/a: multi-select delete is out of scope (per-profile delete instead) |
+
+Added during implementation (beyond the Bash suite): `store::create_failure_leaves_no_half_made_profile`, `store::delete_trashes_hand_made_launchers_too`, `store::delete_refuses_profile_running_as_the_real_snap_does`, `procs::tests::finds_signal_with_a_rewritten_command_line`, `launcher::tests::{write_leaves_no_temp_files_behind, reads_the_menu_name}`, and ui wiring checks (open launches, trash via dialog selects the neighbour, Repair writes the launcher, Delete key, context menu, CSS parses). Real-system check (2026-09-23): the Bash functions and the Rust core report the same profiles, running state and launchers for the real `~/Signal`.
 
 ## Out of scope (YAGNI until asked)
 
