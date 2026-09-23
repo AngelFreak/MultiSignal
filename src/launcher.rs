@@ -85,6 +85,21 @@ pub fn find(paths: &Paths, name: &str) -> io::Result<Vec<PathBuf>> {
     Ok(found)
 }
 
+/// The `Name=` shown in the app menu: the untranslated key of the
+/// `[Desktop Entry]` group.
+pub fn display_name(path: &Path) -> Option<String> {
+    let text = fs::read_to_string(path).ok()?;
+    let mut in_entry = false;
+    for line in text.lines() {
+        if line.starts_with('[') {
+            in_entry = line == "[Desktop Entry]";
+        } else if in_entry && let Some(name) = line.strip_prefix("Name=") {
+            return Some(name.to_string());
+        }
+    }
+    None
+}
+
 fn write_file(path: &Path, text: &str) -> io::Result<()> {
     let mut file = fs::File::create(path)?;
     file.write_all(text.as_bytes())?;
@@ -202,6 +217,22 @@ mod tests {
     fn finds_nothing_when_applications_dir_is_missing() {
         let tmp = tempfile::tempdir().unwrap();
         assert!(find(&paths(tmp.path()), "A").unwrap().is_empty());
+    }
+
+    #[test]
+    fn reads_the_menu_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = paths(tmp.path());
+        let ours = write(&p, "Work").unwrap();
+        assert_eq!(display_name(&ours).as_deref(), Some("Signal (Work)"));
+        let other = tmp.path().join("x.desktop");
+        std::fs::write(
+            &other,
+            "[Desktop Action new]\nName=Other\n[Desktop Entry]\nName[de]=Arbeit\nName=Damon\n",
+        )
+        .unwrap();
+        assert_eq!(display_name(&other).as_deref(), Some("Damon"));
+        assert_eq!(display_name(&tmp.path().join("missing.desktop")), None);
     }
 
     #[test]

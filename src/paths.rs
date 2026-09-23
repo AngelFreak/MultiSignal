@@ -16,6 +16,8 @@ pub struct Paths {
     pub signal_bin: PathBuf,
     /// `/proc`, replaced by a fake tree in tests.
     pub proc_root: PathBuf,
+    /// Remembered window size (`$XDG_CONFIG_HOME/multisignal/window.ini`).
+    pub window_state: PathBuf,
 }
 
 impl Paths {
@@ -26,14 +28,19 @@ impl Paths {
             applications: data.join("applications"),
             signal_bin: PathBuf::from("/snap/bin/signal-desktop"),
             proc_root: PathBuf::from("/proc"),
+            window_state: home.join(".config/multisignal/window.ini"),
         }
     }
 
-    /// Reads `HOME`, `XDG_DATA_HOME` and `MULTISIGNAL_SIGNAL_BIN`.
+    /// Reads `HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and
+    /// `MULTISIGNAL_SIGNAL_BIN`.
     pub fn from_env() -> Result<Self, String> {
         let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
         let xdg = std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty());
         let mut paths = Self::for_home(Path::new(&home), xdg.as_deref().map(Path::new));
+        if let Some(config) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
+            paths.window_state = Path::new(&config).join("multisignal/window.ini");
+        }
         if let Some(bin) = std::env::var_os("MULTISIGNAL_SIGNAL_BIN") {
             paths.signal_bin = bin.into();
         }
@@ -67,5 +74,14 @@ mod tests {
     fn respects_xdg_data_home() {
         let p = Paths::for_home(Path::new("/h"), Some(Path::new("/data")));
         assert_eq!(p.applications, Path::new("/data/applications"));
+    }
+
+    #[test]
+    fn window_state_lives_in_the_config_dir() {
+        let p = Paths::for_home(Path::new("/h"), None);
+        assert_eq!(
+            p.window_state,
+            Path::new("/h/.config/multisignal/window.ini")
+        );
     }
 }
