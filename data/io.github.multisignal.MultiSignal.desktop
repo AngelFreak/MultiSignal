@@ -2,9 +2,10 @@
 Type=Application
 Name=Signal Profiles
 Comment=Run several Signal accounts side by side
-Exec=multisignal
+Exec=multisignal %u
 Icon=system-users
 Terminal=false
 Categories=Network;InstantMessaging;
 Keywords=Signal;profiles;accounts;messenger;
+MimeType=x-scheme-handler/sgnl;x-scheme-handler/signalcaptcha;
 StartupNotify=true

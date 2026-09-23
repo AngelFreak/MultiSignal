@@ -1,11 +1,14 @@
 //! The GTK user interface. It renders what the store reports and forwards
 //! clicks to it; every rule lives in the GTK-free modules.
 
+mod app;
 mod avatar;
 pub mod create_dialog;
 pub mod delete_dialog;
 mod detail;
 mod install_page;
+pub mod link_dialog;
+pub mod link_handler;
 mod settings;
 mod sidebar_row;
 mod window;
@@ -18,6 +21,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+pub use app::application;
 pub use window::MainWindow;
 
 /// Everything the UI needs from the outside world, so tests can pass fakes.

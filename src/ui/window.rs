@@ -6,8 +6,11 @@ use super::create_dialog::{self, CreateDialog, Purpose};
 use super::delete_dialog::{self, TrashDialog};
 use super::detail::{self, DetailWidgets};
 use super::install_page::InstallPage;
+use super::link_dialog::{self, LinkDialog};
+use super::link_handler;
 use super::settings::{self, Appearance};
 use super::{Deps, button_label, push_button, sidebar_row, summary_line};
+use crate::links::{self, Route};
 use crate::procs;
 use crate::profiles::{DEFAULT_NAME, Profile};
 use crate::store::{AdoptError, CreateError};
@@ -346,6 +349,25 @@ impl MainWindow {
             }
         });
         self.window.add_action(&appearance);
+
+        let handle_links = gio::SimpleAction::new_stateful(
+            "handle-links",
+            None,
+            &link_handler::is_default().to_variant(),
+        );
+        let weak = Rc::downgrade(self);
+        handle_links.connect_activate(move |action, _| {
+            let Some(this) = weak.upgrade() else { return };
+            let on = !action
+                .state()
+                .and_then(|s| s.get::<bool>())
+                .unwrap_or(false);
+            if let Err(e) = link_handler::set_default(on) {
+                this.toast(&format!("Could not change the link handler: {e}"));
+            }
+            action.set_state(&link_handler::is_default().to_variant());
+        });
+        self.window.add_action(&handle_links);
     }
 
     fn add_action(self: &Rc<Self>, name: &str, run: impl Fn(&Rc<Self>) + 'static) {
@@ -446,6 +468,47 @@ impl MainWindow {
                 self.toast(done);
             }
             Err(e) => self.toast(&format!("Could not change the Signal entry: {e}")),
+        }
+    }
+
+    /// Routes a Signal link: the one running profile gets it; otherwise a
+    /// dialog asks which profile (returned, for tests).
+    pub fn open_link(self: &Rc<Self>, link: &str) -> Option<LinkDialog> {
+        if !links::is_signal_link(link) {
+            self.toast(&format!("Not a Signal link: {link}"));
+            return None;
+        }
+        self.reload(); // who is running right now
+        let profiles = self.profiles.borrow().clone();
+        match links::route(&profiles) {
+            Route::To(name) => {
+                self.deliver_link(&name, link);
+                None
+            }
+            Route::Ask(names) if names.is_empty() => {
+                self.toast("There is no Signal profile to open this link");
+                None
+            }
+            Route::Ask(names) => {
+                let candidates: Vec<Profile> = profiles
+                    .into_iter()
+                    .filter(|p| names.contains(&p.name))
+                    .collect();
+                Some(link_dialog::present(self, link, &candidates))
+            }
+        }
+    }
+
+    pub(super) fn deliver_link(&self, name: &str, link: &str) {
+        let title = self
+            .profiles
+            .borrow()
+            .iter()
+            .find(|p| p.name == name)
+            .map_or_else(|| name.to_string(), |p| p.title.clone());
+        match self.deps.store.open_link(name, link) {
+            Ok(()) => self.toast(&format!("Sent the link to Signal ({title})")),
+            Err(e) => self.toast(&format!("Could not send the link to Signal ({title}): {e}")),
         }
     }
 
@@ -1192,11 +1255,14 @@ fn more_menu_button() -> gtk::MenuButton {
             Some(&format!("win.appearance::{}", choice.id())),
         );
     }
+    let links = gio::Menu::new();
+    links.append(Some("Handle Signal Links"), Some("win.handle-links"));
     let about = gio::Menu::new();
     about.append(Some("About Signal Profiles"), Some("win.about"));
     let menu = gio::Menu::new();
     menu.append_section(None, &repair);
     menu.append_section(Some("Appearance"), &appearance);
+    menu.append_section(None, &links);
     menu.append_section(None, &about);
     let button = gtk::MenuButton::builder()
         .icon_name("view-more-horizontal-symbolic")

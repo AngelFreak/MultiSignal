@@ -22,13 +22,17 @@ impl Trash for GioTrash {
 pub struct SetsidLauncher;
 
 impl Launch for SetsidLauncher {
-    fn launch(&self, paths: &Paths, name: &str) -> io::Result<()> {
+    fn launch(&self, paths: &Paths, name: &str, link: Option<&str>) -> io::Result<()> {
         let data_dir = format!("--user-data-dir={}", paths.profile_dir(name).display());
-        detached(paths, &[data_dir])
+        let args: Vec<String> = std::iter::once(data_dir)
+            .chain(link.map(String::from))
+            .collect();
+        detached(paths, &args)
     }
 
-    fn launch_default(&self, paths: &Paths) -> io::Result<()> {
-        detached(paths, &[])
+    fn launch_default(&self, paths: &Paths, link: Option<&str>) -> io::Result<()> {
+        let args: Vec<String> = link.map(String::from).into_iter().collect();
+        detached(paths, &args)
     }
 }
 

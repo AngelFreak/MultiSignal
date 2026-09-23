@@ -24,10 +24,10 @@ Instead Signal Profiles' own desktop entry claims the two schemes and routes.
 **Status**: Complete
 
 ## Stage 3: Route Signal links
-**Goal**: the app's desktop entry claims `x-scheme-handler/sgnl` and `x-scheme-handler/signalcaptcha` (`Exec=multisignal %u`, `HANDLES_OPEN`); a GTK-free `route()` picks the single running profile, else the window asks; delivery runs `signal-desktop [--user-data-dir=…] <link>` so the running instance receives it. First run makes the app the default handler; "Handle Signal Links" in ⋯ toggles it.
+**Goal**: the app's desktop entry claims `x-scheme-handler/sgnl` and `x-scheme-handler/signalcaptcha` (`Exec=multisignal %u`, `HANDLES_COMMAND_LINE`: raw arguments, because GIO rewrites `scheme://token` as `scheme://token/`); a GTK-free `route()` picks the single running profile, else the window asks; delivery runs `signal-desktop [--user-data-dir=…] <link>` so the running instance receives it. First run makes the app the default handler; "Handle Signal Links" in ⋯ toggles it.
 **Success Criteria**: a link opened through the real `GApplication` path reaches the right profile's launch call.
 **Tests**: `route` unit tests; store/system link delivery; ui chooser; an application-level test that calls `open` on the registered app.
-**Status**: Not Started
+**Status**: Complete
 
 ## Stage 4: Ship
 **Goal**: README, design doc, screenshots, `.deb` (desktop entry with MimeType), install locally, push.

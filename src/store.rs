@@ -1,6 +1,6 @@
 //! Create, delete, repair and launch profiles.
 
-use crate::{launcher, lock, names, paths::Paths, procs, profiles};
+use crate::{launcher, links, lock, names, paths::Paths, procs, profiles};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -11,10 +11,11 @@ pub trait Trash {
 }
 
 /// Starts Signal for a profile. Real: `setsid -f`. Tests: record the call.
+/// With a `link`, a Signal already running for that profile receives it.
 pub trait Launch {
-    fn launch(&self, paths: &Paths, name: &str) -> io::Result<()>;
+    fn launch(&self, paths: &Paths, name: &str, link: Option<&str>) -> io::Result<()>;
     /// Starts the Signal snap's own profile (no `--user-data-dir`).
-    fn launch_default(&self, paths: &Paths) -> io::Result<()>;
+    fn launch_default(&self, paths: &Paths, link: Option<&str>) -> io::Result<()>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -190,24 +191,49 @@ impl Store {
     }
 
     pub fn launch(&self, name: &str) -> io::Result<()> {
+        self.launch_profile(name, None)
+    }
+
+    /// Starts (or brings forward) the default Signal, unless it's locked.
+    pub fn launch_default(&self) -> io::Result<()> {
+        self.launch_default_with(None)
+    }
+
+    /// Hands a Signal link (`sgnl://`, `signalcaptcha://`) to a profile, by
+    /// its key; a running instance receives it, otherwise Signal starts with
+    /// it.
+    pub fn open_link(&self, name: &str, link: &str) -> io::Result<()> {
+        if !links::is_signal_link(link) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("not a Signal link: {link}"),
+            ));
+        }
+        if name == profiles::DEFAULT_NAME {
+            self.launch_default_with(Some(link))
+        } else {
+            self.launch_profile(name, Some(link))
+        }
+    }
+
+    fn launch_profile(&self, name: &str, link: Option<&str>) -> io::Result<()> {
         if !names::is_valid(name) || !self.paths.profile_dir(name).is_dir() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!("no profile named {name:?}"),
             ));
         }
-        self.launcher.launch(&self.paths, name)
+        self.launcher.launch(&self.paths, name, link)
     }
 
-    /// Starts (or brings forward) the default Signal, unless it's locked.
-    pub fn launch_default(&self) -> io::Result<()> {
+    fn launch_default_with(&self, link: Option<&str>) -> io::Result<()> {
         if lock::is_locked(&self.paths) {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "the default Signal is locked; unlock it first",
             ));
         }
-        self.launcher.launch_default(&self.paths)
+        self.launcher.launch_default(&self.paths, link)
     }
 
     /// Hides the snap's Signal entry so the default isn't opened by accident.

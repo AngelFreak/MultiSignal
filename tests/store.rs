@@ -18,14 +18,19 @@ impl Trash for DirTrash {
 #[derive(Clone, Default)]
 struct Recorder(Rc<RefCell<Vec<String>>>);
 impl Launch for Recorder {
-    fn launch(&self, _: &Paths, name: &str) -> std::io::Result<()> {
-        self.0.borrow_mut().push(name.to_string());
+    /// Records "name", or "name link" when a link is passed.
+    fn launch(&self, _: &Paths, name: &str, link: Option<&str>) -> std::io::Result<()> {
+        self.0.borrow_mut().push(record(name, link));
         Ok(())
     }
-    fn launch_default(&self, _: &Paths) -> std::io::Result<()> {
-        self.0.borrow_mut().push("(default)".to_string());
+    fn launch_default(&self, _: &Paths, link: Option<&str>) -> std::io::Result<()> {
+        self.0.borrow_mut().push(record("(default)", link));
         Ok(())
     }
+}
+
+fn record(name: &str, link: Option<&str>) -> String {
+    link.map_or_else(|| name.to_string(), |l| format!("{name} {l}"))
 }
 
 struct Fixture {
@@ -364,4 +369,34 @@ fn a_locked_default_is_never_launched() {
     f.store.unlock_default().unwrap();
     f.store.launch_default().unwrap();
     assert_eq!(*f.launched.0.borrow(), ["(default)"]);
+}
+
+#[test]
+fn open_link_passes_the_link_to_that_profile() {
+    let f = fixture();
+    f.store.create("Work").unwrap();
+    std::fs::create_dir_all(&f.store.paths.default_data_dir).unwrap();
+    f.store.open_link("Work", "signalcaptcha://abc").unwrap();
+    f.store
+        .open_link(multisignal::profiles::DEFAULT_NAME, "sgnl://x")
+        .unwrap();
+    assert_eq!(
+        *f.launched.0.borrow(),
+        ["Work signalcaptcha://abc", "(default) sgnl://x"]
+    );
+}
+
+#[test]
+fn open_link_refuses_other_links_and_unknown_profiles() {
+    let f = fixture();
+    f.store.create("Work").unwrap();
+    assert!(f.store.open_link("Work", "https://evil.example").is_err());
+    assert!(f.store.open_link("Nope", "sgnl://x").is_err());
+    f.store.lock_default().unwrap();
+    assert!(
+        f.store
+            .open_link(multisignal::profiles::DEFAULT_NAME, "sgnl://x")
+            .is_err()
+    );
+    assert!(f.launched.0.borrow().is_empty());
 }

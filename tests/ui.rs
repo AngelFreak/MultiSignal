@@ -26,14 +26,19 @@ impl Trash for DirTrash {
 #[derive(Clone, Default)]
 struct Recorder(Rc<RefCell<Vec<String>>>);
 impl Launch for Recorder {
-    fn launch(&self, _: &Paths, name: &str) -> std::io::Result<()> {
-        self.0.borrow_mut().push(name.to_string());
+    /// Records "name", or "name link" when a link is passed.
+    fn launch(&self, _: &Paths, name: &str, link: Option<&str>) -> std::io::Result<()> {
+        self.0.borrow_mut().push(record(name, link));
         Ok(())
     }
-    fn launch_default(&self, _: &Paths) -> std::io::Result<()> {
-        self.0.borrow_mut().push("(default)".to_string());
+    fn launch_default(&self, _: &Paths, link: Option<&str>) -> std::io::Result<()> {
+        self.0.borrow_mut().push(record("(default)", link));
         Ok(())
     }
+}
+
+fn record(name: &str, link: Option<&str>) -> String {
+    link.map_or_else(|| name.to_string(), |l| format!("{name} {l}"))
 }
 
 /// "Installs" by flipping a flag, as a successful snap install would.
@@ -103,9 +108,34 @@ fn check(name: &str, ok: bool) {
     }
 }
 
+/// Points GIO at sandbox folders before it starts, so link-handler tests
+/// never touch the real mimeapps.list; our desktop entry is installed there.
+fn sandbox_gio(root: &Path) {
+    let data = root.join("data");
+    let apps = data.join("applications");
+    std::fs::create_dir_all(&apps).unwrap();
+    std::fs::create_dir_all(root.join("config")).unwrap();
+    std::fs::copy(
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/io.github.multisignal.MultiSignal.desktop"
+        ),
+        apps.join("io.github.multisignal.MultiSignal.desktop"),
+    )
+    .unwrap();
+    // SAFETY: first thing in main, before GTK or any other thread starts.
+    unsafe {
+        std::env::set_var("HOME", root);
+        std::env::set_var("XDG_DATA_HOME", &data);
+        std::env::set_var("XDG_CONFIG_HOME", root.join("config"));
+        std::env::set_var("XDG_DATA_DIRS", "/usr/local/share:/usr/share");
+    }
+}
+
 fn main() {
-    adw::init().expect("a display is available");
     let tmp = tempfile::tempdir().unwrap();
+    sandbox_gio(&tmp.path().join("gio"));
+    adw::init().expect("a display is available");
 
     // Task 10: window shell, states, split view.
     let w = ui::build_window(deps(&tmp.path().join("a"), false, &[], &[]));
@@ -515,6 +545,89 @@ fn main() {
         "unlocked again: can be opened",
         w.action_enabled("win.open-selected"),
     );
+
+    // Signal links: the one running profile gets them, otherwise the user picks.
+    let f = fixture(&tmp.path().join("o"), true, &["A", "B", "C"], &["B"]);
+    let launched = f.launched.clone();
+    let w = ui::build_window(f.deps);
+    check(
+        "one running profile: no question",
+        w.open_link("signalcaptcha://one").is_none(),
+    );
+    check(
+        "the running profile got the link",
+        *launched.0.borrow() == ["B signalcaptcha://one"],
+    );
+    check(
+        "other links are ignored",
+        w.open_link("https://example.com").is_none() && launched.0.borrow().len() == 1,
+    );
+
+    let f = fixture(&tmp.path().join("p"), true, &["A", "B", "C"], &["A", "C"]);
+    let launched = f.launched.clone();
+    let w = ui::build_window(f.deps);
+    let chooser = w.open_link("sgnl://two").expect("several running: it asks");
+    check(
+        "it offers the running profiles",
+        chooser.titles() == ["A", "C"],
+    );
+    chooser.choose("C");
+    check(
+        "the chosen profile got the link",
+        *launched.0.borrow() == ["C sgnl://two"],
+    );
+
+    // The real application path: a link opened on the app reaches a profile.
+    let f = fixture(&tmp.path().join("q"), true, &["Work"], &["Work"]);
+    let launched = f.launched.clone();
+    let paths = f.paths.clone();
+    let recorder = f.launched.clone();
+    let app = ui::application("io.github.multisignal.UiTest", move || Deps {
+        store: Store::new(
+            paths.clone(),
+            Box::new(DirTrash(paths.signal_base.join("../trash"))),
+            Box::new(recorder.clone()),
+        ),
+        installer: Arc::new(FakeInstaller(Arc::new(AtomicBool::new(true)))),
+    });
+    app.set_flags(app.flags() | gtk::gio::ApplicationFlags::NON_UNIQUE);
+    let quit = app.clone();
+    gtk::glib::timeout_add_local_once(std::time::Duration::from_millis(500), move || quit.quit());
+    app.run_with_args(&["multisignal", "signalcaptcha://three"]);
+    check(
+        "a link opened on the app reaches the running profile",
+        *launched.0.borrow() == ["Work signalcaptcha://three"],
+    );
+    check("…and shows the window", app.active_window().is_some());
+
+    // Being the handler for Signal links (in the GIO sandbox).
+    use multisignal::ui::link_handler;
+    check("not the link handler at first", !link_handler::is_default());
+    let settings = tmp.path().join("gio/claim.ini");
+    link_handler::claim_once(&settings);
+    check(
+        "first run makes it the link handler",
+        link_handler::is_default(),
+    );
+    link_handler::set_default(false).unwrap();
+    link_handler::claim_once(&settings);
+    check(
+        "…only once: a later choice is respected",
+        !link_handler::is_default(),
+    );
+    check(
+        "the ⋯ menu has Handle Signal Links",
+        w.more_menu_labels()
+            .iter()
+            .any(|l| l == "Handle Signal Links"),
+    );
+    w.activate_action_for_test("handle-links");
+    check(
+        "Handle Signal Links turns it on",
+        link_handler::is_default(),
+    );
+    w.activate_action_for_test("handle-links");
+    check("…and off again", !link_handler::is_default());
 
     // Appearance: Automatic (follow GNOME), Light or Dark, remembered.
     let style = adw::StyleManager::default();

@@ -26,10 +26,10 @@ impl Trash for NoTrash {
 }
 struct NoLaunch;
 impl Launch for NoLaunch {
-    fn launch(&self, _: &Paths, _: &str) -> std::io::Result<()> {
+    fn launch(&self, _: &Paths, _: &str, _: Option<&str>) -> std::io::Result<()> {
         Ok(())
     }
-    fn launch_default(&self, _: &Paths) -> std::io::Result<()> {
+    fn launch_default(&self, _: &Paths, _: Option<&str>) -> std::io::Result<()> {
         Ok(())
     }
 }

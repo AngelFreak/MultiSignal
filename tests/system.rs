@@ -70,6 +70,24 @@ fn real_adapters_trash_and_launch() {
         .expect("stub ran for the default Signal");
     assert_eq!(line.trim(), multisignal::paths::SNAP_DESKTOP_HINT);
 
+    // A Signal link is passed on after the profile folder.
+    std::fs::remove_file(&log).unwrap();
+    store.open_link("Work", "signalcaptcha://token").unwrap();
+    let line = (0..100)
+        .find_map(|_| {
+            std::thread::sleep(Duration::from_millis(50));
+            std::fs::read_to_string(&log).ok()
+        })
+        .expect("stub ran with the link");
+    assert_eq!(
+        line.trim(),
+        format!(
+            "{} --user-data-dir={} signalcaptcha://token",
+            multisignal::paths::SNAP_DESKTOP_HINT,
+            paths.profile_dir("Work").display()
+        )
+    );
+
     // And delete goes through gio for real: data and launcher.
     store.delete("Work").unwrap();
     assert!(data.join("Trash/files/Work").is_dir());

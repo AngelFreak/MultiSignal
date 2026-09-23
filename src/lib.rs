@@ -4,6 +4,7 @@
 //! against a temporary directory.
 
 pub mod launcher;
+pub mod links;
 pub mod lock;
 pub mod names;
 pub mod paths;
