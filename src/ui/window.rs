@@ -37,7 +37,8 @@ pub struct MainWindow {
     profiles: RefCell<Vec<Profile>>,
     selected: RefCell<Option<String>>,
     installed: Cell<bool>,
-    /// The user's name for the default Signal, from the settings file.
+    /// The user's name for the default Signal, from the settings file; shown
+    /// as "<name> (default)".
     default_title: Option<String>,
     /// Set while the list is rebuilt, so the selection signals it fires are ignored.
     rebuilding: Cell<bool>,
@@ -177,8 +178,9 @@ impl MainWindow {
             }
         };
         if let Some(title) = &self.default_title {
+            // Keep the marker: it's the Signal set up without Signal Profiles.
             for p in profiles.iter_mut().filter(|p| p.is_default) {
-                p.title = title.clone();
+                p.title = format!("{title} (default)");
             }
         }
         let selected = {

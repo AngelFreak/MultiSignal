@@ -403,10 +403,13 @@ fn main() {
     std::fs::write(&f.paths.settings, "[default]\nname=Personal\n").unwrap();
     let w = ui::build_window(f.deps);
     check(
-        "default shown by its own name",
-        w.sidebar_titles() == ["Personal", "Work"],
+        "default shown by its own name, still marked (default)",
+        w.sidebar_titles() == ["Personal (default)", "Work"],
     );
-    check("its detail uses the name", w.detail_title() == "Personal");
+    check(
+        "its detail uses the name",
+        w.detail_title() == "Personal (default)",
+    );
     w.activate_action_for_test("open-selected");
     check(
         "renamed default still opens the default",
