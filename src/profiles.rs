@@ -54,15 +54,18 @@ pub fn existing_ignoring_case(paths: &Paths, name: &str) -> Option<String> {
         .find(|n| n.eq_ignore_ascii_case(name))
 }
 
-/// The default Signal first (when the snap has data or it is locked), then
+/// The default Signal first (once the snap has run, or when locked), then
 /// every profile in
 /// `~/Signal`.
 pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
     let running = procs::running(&paths.proc_root);
     let mut profiles = Vec::new();
-    // A locked default stays listed even with no data, so it can be unlocked.
+    // Listed once the snap has run for this user (its config folder exists),
+    // even with its data moved away, and whenever it's locked, so it can
+    // always be locked or unlocked.
     let locked = lock::is_locked(paths);
-    if paths.default_data_dir.is_dir() || locked {
+    let snap_has_run = paths.default_data_dir.parent().is_some_and(Path::is_dir);
+    if snap_has_run || locked {
         profiles.push(Profile {
             name: DEFAULT_NAME.to_string(),
             title: DEFAULT_NAME.to_string(),
@@ -194,6 +197,17 @@ mod tests {
         let profiles = load_all(&p).unwrap();
         assert_eq!(profiles.len(), 1);
         assert!(profiles[0].is_default && profiles[0].locked);
+        assert_eq!(profiles[0].size_bytes, 0);
+    }
+
+    #[test]
+    fn the_default_stays_listed_after_its_data_moved() {
+        let (_t, p) = setup();
+        // The snap has run (its config folder exists) but its Signal data is gone.
+        std::fs::create_dir_all(p.default_data_dir.parent().unwrap()).unwrap();
+        let profiles = load_all(&p).unwrap();
+        assert_eq!(profiles.len(), 1);
+        assert!(profiles[0].is_default && !profiles[0].locked);
         assert_eq!(profiles[0].size_bytes, 0);
     }
 

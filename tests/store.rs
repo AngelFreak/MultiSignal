@@ -316,7 +316,11 @@ fn adopt_default_moves_its_data_into_a_profile() {
         &f.store.paths.own_launcher("Personal")
     ));
     let profiles = f.store.load().unwrap();
-    assert!(profiles.iter().all(|p| !p.is_default));
+    let default = profiles
+        .iter()
+        .find(|p| p.is_default)
+        .expect("still listed");
+    assert_eq!(default.size_bytes, 0, "and empty");
     assert!(profiles.iter().any(|p| p.name == "Personal"));
 }
 

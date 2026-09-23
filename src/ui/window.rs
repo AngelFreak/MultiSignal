@@ -40,6 +40,8 @@ pub struct MainWindow {
     profiles: RefCell<Vec<Profile>>,
     selected: RefCell<Option<String>>,
     installed: Cell<bool>,
+    /// The button label of the last toast that had one, for tests.
+    last_toast_button: RefCell<Option<String>>,
     /// The user's name for the default Signal, from the settings file; shown
     /// as "<name> (default)".
     default_title: RefCell<Option<String>>,
@@ -151,6 +153,7 @@ impl MainWindow {
             profiles: RefCell::new(Vec::new()),
             selected: RefCell::new(None),
             installed: Cell::new(installed),
+            last_toast_button: RefCell::new(None),
             default_title: RefCell::new(default_title),
             rebuilding: Cell::new(false),
         });
@@ -445,7 +448,13 @@ impl MainWindow {
         *self.default_title.borrow_mut() = None;
         *self.selected.borrow_mut() = Some(name.clone());
         self.reload();
-        self.toast(&format!("The default Signal is now the profile “{name}”"));
+        let text = format!("The default Signal is now the profile “{name}”");
+        if crate::lock::is_locked(&self.deps.store.paths) {
+            self.toast(&text);
+        } else {
+            // It's empty now; locking keeps it from being set up again by accident.
+            self.toast_with_button(&text, "Lock", |this| this.set_default_locked(true));
+        }
         Ok(name)
     }
 
@@ -529,18 +538,10 @@ impl MainWindow {
         if self.split.is_collapsed() {
             self.split.set_show_content(true);
         }
-        let toast = adw::Toast::builder()
-            .title(format!("“{name}” created"))
-            .button_label("Open")
-            .build();
-        let weak = Rc::downgrade(self);
         let launched = name.clone();
-        toast.connect_button_clicked(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.launch(&launched);
-            }
+        self.toast_with_button(&format!("“{name}” created"), "Open", move |this| {
+            this.launch(&launched)
         });
-        self.toasts.add_toast(toast);
         Ok(name)
     }
 
@@ -664,6 +665,26 @@ impl MainWindow {
 
     fn toast(&self, text: &str) {
         self.toasts.add_toast(adw::Toast::new(text));
+    }
+
+    fn toast_with_button(
+        self: &Rc<Self>,
+        text: &str,
+        label: &str,
+        on_click: impl Fn(&Rc<Self>) + 'static,
+    ) {
+        let toast = adw::Toast::builder()
+            .title(text)
+            .button_label(label)
+            .build();
+        let weak = Rc::downgrade(self);
+        toast.connect_button_clicked(move |_| {
+            if let Some(this) = weak.upgrade() {
+                on_click(&this);
+            }
+        });
+        *self.last_toast_button.borrow_mut() = Some(label.to_string());
+        self.toasts.add_toast(toast);
     }
 
     // Signals and live status ----------------------------------------------
@@ -1042,6 +1063,10 @@ impl MainWindow {
 
     pub fn save_window_state_for_test(&self) {
         self.save_window_state();
+    }
+
+    pub fn last_toast_button_for_test(&self) -> Option<String> {
+        self.last_toast_button.borrow().clone()
     }
 
     /// Reads everything again, as the 2-second poll or regaining focus does.

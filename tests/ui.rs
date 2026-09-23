@@ -507,8 +507,9 @@ fn main() {
         std::fs::read_to_string(paths.profile_dir("Personal").join("db")).is_ok(),
     );
     check(
-        "the default is gone",
-        w.sidebar_titles() == ["Personal", "Work"],
+        "the default stays listed, empty",
+        w.sidebar_titles() == ["Signal (default)", "Personal", "Work"]
+            && w.sidebar_secondary(DEFAULT_NAME) == "Empty",
     );
     check(
         "the moved profile is selected",
@@ -519,6 +520,19 @@ fn main() {
         !std::fs::read_to_string(&paths.settings)
             .unwrap_or_default()
             .contains("name=Personal"),
+    );
+    check(
+        "after moving, the toast offers to lock the default",
+        w.last_toast_button_for_test().as_deref() == Some("Lock"),
+    );
+    w.select(DEFAULT_NAME);
+    check(
+        "the empty default can be locked",
+        w.action_enabled("win.lock-default"),
+    );
+    check(
+        "…but has nothing to move",
+        !w.action_enabled("win.adopt-default"),
     );
     check("Work is not movable", {
         w.select("Work");
