@@ -123,8 +123,24 @@ fn sandbox_gio(root: &Path) {
         apps.join("io.github.multisignal.MultiSignal.desktop"),
     )
     .unwrap();
+    // GIO ignores entries whose program isn't on the PATH, and `multisignal`
+    // is only there where the app is installed; a stub stands in for it.
+    let bin = root.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    std::fs::write(bin.join("multisignal"), "#!/bin/sh\n").unwrap();
+    std::fs::set_permissions(
+        bin.join("multisignal"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
     // SAFETY: first thing in main, before GTK or any other thread starts.
     unsafe {
+        std::env::set_var("PATH", path);
         std::env::set_var("HOME", root);
         std::env::set_var("XDG_DATA_HOME", &data);
         std::env::set_var("XDG_CONFIG_HOME", root.join("config"));

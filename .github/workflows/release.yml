@@ -41,7 +41,7 @@ jobs:
       # The UI tests build real GTK windows, so they need a display; the
       # multisignal.sh tests use the gio tool (libglib2.0-bin) for the Trash.
       - name: Test
-        run: xvfb-run -a cargo test --locked
+        run: xvfb-run -a cargo test --locked --no-fail-fast
 
       - name: Build the package
         run: echo "DEB=$(scripts/build-deb.sh)" >> "$GITHUB_ENV"

@@ -36,7 +36,9 @@ fn locking_hides_the_snap_entry_from_gio() {
     std::fs::create_dir_all(system.join("applications")).unwrap();
     std::fs::write(
         system.join("applications").join(SNAP_ENTRY_ID),
-        "[Desktop Entry]\nType=Application\nName=Signal\nExec=/snap/bin/signal-desktop %U\n\
+        // A program that exists everywhere: GIO ignores entries whose program
+        // is missing, and CI runners have no Signal snap.
+        "[Desktop Entry]\nType=Application\nName=Signal\nExec=true %U\n\
          MimeType=x-scheme-handler/sgnl;x-scheme-handler/signalcaptcha;\n",
     )
     .unwrap();
