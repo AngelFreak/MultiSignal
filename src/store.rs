@@ -40,6 +40,22 @@ pub enum DeleteError {
     Trash { name: String, reason: String },
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum AdoptError {
+    #[error("The default Signal has no data to move")]
+    NoDefault,
+    #[error("Quit the default Signal first. Closing its window can leave it running in the tray.")]
+    Running,
+    #[error(transparent)]
+    Name(#[from] CreateError),
+    #[error("Could not move the default Signal: {0}")]
+    Move(io::Error),
+    #[error(
+        "Moved to ~/Signal/{name}, but its app menu entry could not be written ({source}). Use Repair."
+    )]
+    Launcher { name: String, source: io::Error },
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub struct RepairReport {
     pub updated: Vec<String>,
@@ -70,16 +86,7 @@ impl Store {
     /// Validates (trimmed input), refuses duplicates ignoring case, creates
     /// the data directory and launcher. Returns the final name.
     pub fn create(&self, input: &str) -> Result<String, CreateError> {
-        let name = input.trim();
-        if !names::is_valid(name) {
-            return Err(CreateError::Invalid {
-                input: name.to_string(),
-                suggestion: names::suggest(name),
-            });
-        }
-        if let Some(existing) = profiles::existing_ignoring_case(&self.paths, name) {
-            return Err(CreateError::Exists(existing));
-        }
+        let name = self.new_name(input)?;
         fs::create_dir_all(&self.paths.signal_base)?;
         let dir = self.paths.profile_dir(name);
         match fs::create_dir(&dir) {
@@ -94,6 +101,46 @@ impl Store {
             let _ = fs::remove_dir(&dir);
             return Err(e.into());
         }
+        Ok(name.to_string())
+    }
+
+    /// The trimmed name if it's valid and not taken (ignoring case).
+    fn new_name<'a>(&self, input: &'a str) -> Result<&'a str, CreateError> {
+        let name = input.trim();
+        if !names::is_valid(name) {
+            return Err(CreateError::Invalid {
+                input: name.to_string(),
+                suggestion: names::suggest(name),
+            });
+        }
+        if let Some(existing) = profiles::existing_ignoring_case(&self.paths, name) {
+            return Err(CreateError::Exists(existing));
+        }
+        Ok(name)
+    }
+
+    /// Moves the default Signal's data into `~/Signal/<name>` (one rename, so
+    /// nothing is copied or lost) and gives it a launcher. The default Signal
+    /// is left empty.
+    pub fn adopt_default(&self, input: &str) -> Result<String, AdoptError> {
+        let default = &self.paths.default_data_dir;
+        if !default.is_dir() {
+            return Err(AdoptError::NoDefault);
+        }
+        if procs::running(&self.paths.proc_root).default {
+            return Err(AdoptError::Running);
+        }
+        let name = self.new_name(input)?;
+        let dir = self.paths.profile_dir(name);
+        if dir.exists() {
+            return Err(CreateError::Exists(name.to_string()).into());
+        }
+        fs::create_dir_all(&self.paths.signal_base).map_err(AdoptError::Move)?;
+        fs::rename(default, &dir).map_err(AdoptError::Move)?;
+        launcher::write(&self.paths, name).map_err(|e| AdoptError::Launcher {
+            name: name.to_string(),
+            source: e,
+        })?;
         Ok(name.to_string())
     }
 

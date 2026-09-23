@@ -95,9 +95,27 @@ pub fn build(p: &Profile, compact: bool) -> DetailWidgets {
     root.append(&section("App Menu", &app_menu));
 
     if p.is_default {
-        root.append(&footnote(
-            "This is the Signal snap’s own profile, opened from the Signal entry in your app menu. It stays where the snap keeps it, so it can’t be moved to the Trash here.",
-        ));
+        let actions = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        let move_card = card();
+        let move_row = gtk::ListBoxRow::builder()
+            .child(
+                &gtk::Label::builder()
+                    .label("Move to Profile…")
+                    .xalign(0.0)
+                    .css_classes(["action-row-text"])
+                    .build(),
+            )
+            .activatable(true)
+            .action_name("win.adopt-default")
+            .build();
+        move_card.append(&move_row);
+        actions.append(&move_card);
+        actions.append(&footnote(if p.running {
+            "Quit the default Signal to move it. Moving turns it into a normal profile and leaves the default empty."
+        } else {
+            "This is the Signal snap’s own profile, opened from the Signal entry in your app menu. Moving it turns it into a normal profile with its own menu entry and leaves the default empty."
+        }));
+        root.append(&actions);
         return DetailWidgets {
             root,
             title,

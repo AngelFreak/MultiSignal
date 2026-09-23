@@ -2,7 +2,7 @@
 //! app page is a sidebar + detail split view that folds into list → detail
 //! navigation below 720 px.
 
-use super::create_dialog::{self, CreateDialog};
+use super::create_dialog::{self, CreateDialog, Purpose};
 use super::delete_dialog::{self, TrashDialog};
 use super::detail::{self, DetailWidgets};
 use super::install_page::InstallPage;
@@ -10,7 +10,7 @@ use super::settings::{self, Appearance};
 use super::{Deps, button_label, push_button, sidebar_row, summary_line};
 use crate::procs;
 use crate::profiles::{DEFAULT_NAME, Profile};
-use crate::store::CreateError;
+use crate::store::{AdoptError, CreateError};
 use crate::system::InstallOutcome;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
@@ -39,7 +39,7 @@ pub struct MainWindow {
     installed: Cell<bool>,
     /// The user's name for the default Signal, from the settings file; shown
     /// as "<name> (default)".
-    default_title: Option<String>,
+    default_title: RefCell<Option<String>>,
     /// Set while the list is rebuilt, so the selection signals it fires are ignored.
     rebuilding: Cell<bool>,
 }
@@ -148,7 +148,7 @@ impl MainWindow {
             profiles: RefCell::new(Vec::new()),
             selected: RefCell::new(None),
             installed: Cell::new(installed),
-            default_title,
+            default_title: RefCell::new(default_title),
             rebuilding: Cell::new(false),
         });
         this.install_actions();
@@ -177,7 +177,7 @@ impl MainWindow {
                 return;
             }
         };
-        if let Some(title) = &self.default_title {
+        if let Some(title) = self.default_title.borrow().as_ref() {
             // Keep the marker: it's the Signal set up without Signal Profiles.
             for p in profiles.iter_mut().filter(|p| p.is_default) {
                 p.title = format!("{title} (default)");
@@ -318,6 +318,9 @@ impl MainWindow {
         self.add_action("repair", |this| this.repair(true));
         self.add_action("repair-all", |this| this.repair(false));
         self.add_action("about", |this| this.show_about());
+        self.add_action("adopt-default", |this| {
+            this.open_adopt_dialog();
+        });
 
         // Only a saved choice is applied, so by default the app follows GNOME
         // without touching the style manager.
@@ -372,10 +375,51 @@ impl MainWindow {
         let own = profile.as_ref().filter(|p| !p.is_default);
         enable("repair", own.is_some());
         enable("trash-selected", own.is_some_and(|p| !p.running));
+        let stopped_default = profile
+            .as_ref()
+            .is_some_and(|p| p.is_default && !p.running && p.dir.is_dir());
+        enable("adopt-default", stopped_default);
     }
 
     pub fn open_create_dialog(self: &Rc<Self>) -> CreateDialog {
-        create_dialog::present(self)
+        create_dialog::present(self, Purpose::NewProfile, "")
+    }
+
+    /// "Move to a Profile" for the default Signal, pre-filled with the
+    /// user's name for it when that's a valid profile name.
+    pub fn open_adopt_dialog(self: &Rc<Self>) -> CreateDialog {
+        let bytes = self
+            .profiles
+            .borrow()
+            .iter()
+            .find(|p| p.is_default)
+            .map_or(0, |p| p.size_bytes);
+        let initial = self
+            .default_title
+            .borrow()
+            .clone()
+            .filter(|t| crate::names::is_valid(t))
+            .unwrap_or_default();
+        create_dialog::present(self, Purpose::AdoptDefault(bytes), &initial)
+    }
+
+    /// Moves the default Signal's data into a profile, selects it, and
+    /// forgets the default's display name (it now belongs to the profile).
+    pub(super) fn adopt_default(self: &Rc<Self>, input: &str) -> Result<String, AdoptError> {
+        let name = self.deps.store.adopt_default(input)?;
+        let path = &self.deps.store.paths.settings;
+        let file = settings::load(path);
+        if file.has_group("default") {
+            let _ = file.remove_group("default");
+            if let Err(e) = settings::save(path, &file) {
+                eprintln!("multisignal: could not update {}: {e}", path.display());
+            }
+        }
+        *self.default_title.borrow_mut() = None;
+        *self.selected.borrow_mut() = Some(name.clone());
+        self.reload();
+        self.toast(&format!("The default Signal is now the profile “{name}”"));
+        Ok(name)
     }
 
     pub fn open_trash_dialog(self: &Rc<Self>) -> Option<TrashDialog> {
@@ -812,7 +856,7 @@ impl MainWindow {
     /// Signal's own name so two rows can't look the same.
     pub(super) fn validate_new_name(&self, input: &str) -> create_dialog::Validation {
         match create_dialog::validate(&self.deps.store, input) {
-            create_dialog::Validation::Ok => match &self.default_title {
+            create_dialog::Validation::Ok => match self.default_title.borrow().as_ref() {
                 Some(title) if title.eq_ignore_ascii_case(input.trim()) => {
                     create_dialog::Validation::Exists(title.clone())
                 }
@@ -908,6 +952,11 @@ impl MainWindow {
 
     pub fn save_window_state_for_test(&self) {
         self.save_window_state();
+    }
+
+    /// Reads everything again, as the 2-second poll or regaining focus does.
+    pub fn refresh_for_test(&self) {
+        self.reload();
     }
 
     pub fn set_collapsed_for_test(&self, collapsed: bool) {

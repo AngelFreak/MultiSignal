@@ -63,6 +63,8 @@ list.compact-list .row-name { font-size: 15px; }
 .row-warning-value { font-size: 14px; color: @warning_color; }
 .success-icon { color: @success_text; }
 .destructive-row { font-size: 14px; color: @destructive_color; margin: 13px 16px; }
+.action-row-text { font-size: 14px; color: @link_color; margin: 13px 16px; }
+.action-row-text:disabled { color: @chevron_color; }
 .destructive-row:disabled { color: @chevron_color; }
 .footnote { font-size: 12px; color: @secondary_fg; margin: 0 16px; }
 

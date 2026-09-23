@@ -13,6 +13,8 @@
 - Launcher: `~/.local/share/applications/Signal-<name>.desktop` (respects `$XDG_DATA_HOME`), `X-MultiSignal-Profile=<name>`, `Exec=env BAMF_DESKTOP_FILE_HINT=… /snap/bin/signal-desktop "--user-data-dir=…" %U`, mode 0644, no `MimeType`
 - Name rule: `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`
 
+**Amendment (2026-09-23, default Signal):** profile launchers still have no `MimeType`. Signal Profiles' own entry (`io.github.multisignal.MultiSignal.desktop`) claims `x-scheme-handler/sgnl` and `x-scheme-handler/signalcaptcha` and routes each link to the running profile (or asks). "Locking" the snap's default Signal writes `~/.local/share/applications/signal-desktop_signal-desktop.desktop` with `Hidden=true` and `X-MultiSignal-Lock=true`; only files with that marker are removed on unlock. See `IMPLEMENTATION_PLAN.md` while in progress.
+
 ---
 
 ## UI design

@@ -428,6 +428,57 @@ fn main() {
         w.sidebar_titles() == ["Work"],
     );
 
+    // Moving the default Signal into a profile ("Empty" it without losing it).
+    let f = fixture(&tmp.path().join("m"), true, &["Work"], &[]);
+    let paths = f.paths.clone();
+    std::fs::create_dir_all(&paths.default_data_dir).unwrap();
+    std::fs::write(paths.default_data_dir.join("db"), "messages").unwrap();
+    std::fs::create_dir_all(paths.settings.parent().unwrap()).unwrap();
+    std::fs::write(&paths.settings, "[default]\nname=Personal\n").unwrap();
+    let pid = paths.proc_root.join("400");
+    std::fs::create_dir_all(&pid).unwrap();
+    std::fs::write(pid.join("cmdline"), "/snap/bin/signal-desktop\0").unwrap();
+    let w = ui::build_window(f.deps);
+    check(
+        "running default: can't be moved",
+        !w.action_enabled("win.adopt-default"),
+    );
+    std::fs::remove_dir_all(&pid).unwrap();
+    w.refresh_for_test();
+    check(
+        "stopped default: can be moved",
+        w.action_enabled("win.adopt-default"),
+    );
+    let dialog = w.open_adopt_dialog();
+    check(
+        "move dialog suggests the default's name",
+        dialog.entry.text() == "Personal",
+    );
+    check("that name is accepted", dialog.create.is_sensitive());
+    dialog.create.emit_clicked();
+    check(
+        "the data moved into the profile",
+        std::fs::read_to_string(paths.profile_dir("Personal").join("db")).is_ok(),
+    );
+    check(
+        "the default is gone",
+        w.sidebar_titles() == ["Personal", "Work"],
+    );
+    check(
+        "the moved profile is selected",
+        w.selected().as_deref() == Some("Personal"),
+    );
+    check(
+        "its old display name is cleared",
+        !std::fs::read_to_string(&paths.settings)
+            .unwrap_or_default()
+            .contains("name=Personal"),
+    );
+    check("Work is not movable", {
+        w.select("Work");
+        !w.action_enabled("win.adopt-default")
+    });
+
     // Appearance: Automatic (follow GNOME), Light or Dark, remembered.
     let style = adw::StyleManager::default();
     style.set_color_scheme(adw::ColorScheme::PreferLight);

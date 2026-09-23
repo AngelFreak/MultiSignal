@@ -1,8 +1,9 @@
-//! "New Profile": a desktop dialog that validates the name as you type.
+//! The name dialog: "New Profile", or "Move to a Profile" for the default
+//! Signal's data. It validates the name as you type.
 
 use super::{MainWindow, avatar, dialog_frame, push_button};
 use crate::store::Store;
-use crate::{names, profiles};
+use crate::{names, profiles, units};
 use adw::prelude::*;
 use std::rc::Rc;
 
@@ -50,10 +51,41 @@ fn status(v: &Validation) -> (String, bool) {
     }
 }
 
-fn body(name: &str) -> String {
-    format!(
-        "A separate Signal account with its own messages. It appears in your app menu as “Signal ({name})”."
-    )
+/// What the name is for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Purpose {
+    /// A new, empty profile.
+    NewProfile,
+    /// A profile made from the default Signal's data (its size in bytes).
+    AdoptDefault(u64),
+}
+
+impl Purpose {
+    fn title(self) -> &'static str {
+        match self {
+            Purpose::NewProfile => "New Profile",
+            Purpose::AdoptDefault(_) => "Move to a Profile",
+        }
+    }
+
+    fn button(self) -> &'static str {
+        match self {
+            Purpose::NewProfile => "Create Profile",
+            Purpose::AdoptDefault(_) => "Move",
+        }
+    }
+
+    fn body(self, name: &str) -> String {
+        match self {
+            Purpose::NewProfile => format!(
+                "A separate Signal account with its own messages. It appears in your app menu as “Signal ({name})”."
+            ),
+            Purpose::AdoptDefault(bytes) => format!(
+                "Moves the default Signal’s messages ({}) into ~/Signal/{name}, with its own app menu entry “Signal ({name})”. The default Signal is left empty.",
+                units::size(bytes)
+            ),
+        }
+    }
 }
 
 pub struct CreateDialog {
@@ -64,10 +96,11 @@ pub struct CreateDialog {
     pub suggestion: gtk::Button,
 }
 
-/// Builds and presents the dialog over the main window.
-pub fn present(win: &Rc<MainWindow>) -> CreateDialog {
+/// Builds and presents the dialog over the main window, with `initial` in
+/// the field.
+pub fn present(win: &Rc<MainWindow>, purpose: Purpose, initial: &str) -> CreateDialog {
     let picture = avatar::new("", 52);
-    let frame = dialog_frame(&picture, "New Profile", &body("name"), 460);
+    let frame = dialog_frame(&picture, purpose.title(), &purpose.body("name"), 460);
 
     let label = gtk::Label::builder()
         .label("Name")
@@ -100,7 +133,7 @@ pub fn present(win: &Rc<MainWindow>) -> CreateDialog {
     frame.extra.set_visible(true);
 
     let cancel = push_button("Cancel", &[], Some("esc"));
-    let create = push_button("Create Profile", &["suggested-action"], Some("↵"));
+    let create = push_button(purpose.button(), &["suggested-action"], Some("↵"));
     create.set_sensitive(false);
     frame.buttons.append(&cancel);
     frame.buttons.append(&create);
@@ -125,7 +158,11 @@ pub fn present(win: &Rc<MainWindow>) -> CreateDialog {
         move |entry| {
             let Some(win) = win.upgrade() else { return };
             let text = entry.text();
-            let v = win.validate_new_name(&text);
+            // A move may reuse the default's own display name.
+            let v = match purpose {
+                Purpose::NewProfile => win.validate_new_name(&text),
+                Purpose::AdoptDefault(_) => validate(&win.deps.store, &text),
+            };
             let (line, is_error) = status(&v);
             avatar::set_name(&picture, &text);
             create.set_sensitive(v == Validation::Ok);
@@ -150,7 +187,7 @@ pub fn present(win: &Rc<MainWindow>) -> CreateDialog {
             } else {
                 "name"
             };
-            body_label.set_text(&body(preview));
+            body_label.set_text(&purpose.body(preview));
         }
     });
 
@@ -170,18 +207,26 @@ pub fn present(win: &Rc<MainWindow>) -> CreateDialog {
         let (dialog, entry, message) = (dialog.clone(), entry.clone(), message.clone());
         move |_| {
             let Some(win) = win.upgrade() else { return };
-            match win.create_profile(&entry.text()) {
+            let done = match purpose {
+                Purpose::NewProfile => win.create_profile(&entry.text()).map_err(|e| e.to_string()),
+                Purpose::AdoptDefault(_) => {
+                    win.adopt_default(&entry.text()).map_err(|e| e.to_string())
+                }
+            };
+            match done {
                 Ok(_) => {
                     dialog.close();
                 }
                 Err(e) => {
-                    message.set_text(&e.to_string());
+                    message.set_text(&e);
                     message.add_css_class("error");
                 }
             }
         }
     });
 
+    entry.set_text(initial);
+    entry.set_position(-1);
     dialog.set_focus(Some(&entry));
     dialog.present(Some(&win.window));
     CreateDialog {

@@ -2,7 +2,7 @@
 //! MultiSignal.test.sh (see the parity table in the plan).
 
 use multisignal::paths::Paths;
-use multisignal::store::{CreateError, DeleteError, Launch, Store, Trash};
+use multisignal::store::{AdoptError, CreateError, DeleteError, Launch, Store, Trash};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -287,4 +287,70 @@ fn the_default_signal_can_never_be_deleted() {
     ));
     assert!(default.is_dir());
     assert_eq!(std::fs::read_dir(&f.trash).unwrap().count(), 0);
+}
+
+fn default_with_data(f: &Fixture) -> std::path::PathBuf {
+    let default = f.store.paths.default_data_dir.clone();
+    std::fs::create_dir_all(default.join("sql")).unwrap();
+    std::fs::write(default.join("sql/db.sqlite"), "messages").unwrap();
+    default
+}
+
+#[test]
+fn adopt_default_moves_its_data_into_a_profile() {
+    let f = fixture();
+    let default = default_with_data(&f);
+    assert_eq!(f.store.adopt_default("  Personal ").unwrap(), "Personal");
+    let dir = f.store.paths.profile_dir("Personal");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("sql/db.sqlite")).unwrap(),
+        "messages"
+    );
+    assert!(!default.exists(), "the default is left empty");
+    assert!(desktop_file_validate(
+        &f.store.paths.own_launcher("Personal")
+    ));
+    let profiles = f.store.load().unwrap();
+    assert!(profiles.iter().all(|p| !p.is_default));
+    assert!(profiles.iter().any(|p| p.name == "Personal"));
+}
+
+#[test]
+fn adopt_default_refuses_while_the_default_runs() {
+    let f = fixture();
+    let default = default_with_data(&f);
+    let pid = f.store.paths.proc_root.join("900");
+    std::fs::create_dir_all(&pid).unwrap();
+    std::fs::write(pid.join("cmdline"), "/snap/bin/signal-desktop\0").unwrap();
+    assert!(matches!(
+        f.store.adopt_default("Personal"),
+        Err(AdoptError::Running)
+    ));
+    assert!(default.join("sql/db.sqlite").is_file());
+}
+
+#[test]
+fn adopt_default_refuses_bad_or_taken_names() {
+    let f = fixture();
+    let default = default_with_data(&f);
+    f.store.create("Work").unwrap();
+    assert!(matches!(
+        f.store.adopt_default("work"),
+        Err(AdoptError::Name(CreateError::Exists(n))) if n == "Work"
+    ));
+    assert!(matches!(
+        f.store.adopt_default("My Work"),
+        Err(AdoptError::Name(CreateError::Invalid { .. }))
+    ));
+    assert!(default.join("sql/db.sqlite").is_file());
+}
+
+#[test]
+fn adopt_default_needs_default_data() {
+    let f = fixture();
+    assert!(matches!(
+        f.store.adopt_default("Personal"),
+        Err(AdoptError::NoDefault)
+    ));
+    assert!(!f.store.paths.profile_dir("Personal").exists());
 }
