@@ -198,6 +198,25 @@ fn delete_refuses_running_profile() {
 }
 
 #[test]
+fn delete_refuses_profile_running_as_the_real_snap_does() {
+    // Signal rewrites /proc/<pid>/cmdline into one space-joined string.
+    let f = fixture();
+    f.store.create("A").unwrap();
+    let pid = f.store.paths.proc_root.join("777");
+    std::fs::create_dir_all(&pid).unwrap();
+    std::fs::write(
+        pid.join("cmdline"),
+        format!(
+            "/snap/signal-desktop/945/opt/Signal/signal-desktop --no-sandbox --user-data-dir={}\0\0",
+            f.store.paths.profile_dir("A").display()
+        ),
+    )
+    .unwrap();
+    assert!(matches!(f.store.delete("A"), Err(DeleteError::Running(_))));
+    assert!(f.store.paths.profile_dir("A").is_dir());
+}
+
+#[test]
 fn repair_updates_ours_creates_missing_and_skips_hand_made() {
     let f = fixture();
     let p = &f.store.paths;

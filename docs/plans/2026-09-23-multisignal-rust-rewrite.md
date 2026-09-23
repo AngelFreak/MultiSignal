@@ -726,6 +726,8 @@ Run, pass, commit: `feat: detect running profiles from /proc`.
 `for p in /proc/[0-9]*; do tr '\0' ' ' < $p/cmdline 2>/dev/null | grep -q -- '--user-data-dir=' && tr '\0' ' ' < $p/cmdline | cut -c1-150; echo; done | grep -i signal`
 and confirm argv[0] ends in `/signal-desktop`. If it doesn't, loosen the argv[0] check to "contains `signal-desktop`" and add that case to the test.
 
+**Finding (2026-09-23):** that check hides the real format, because `tr` turns NULs into spaces. Signal (Chromium) rewrites its `/proc/<pid>/cmdline` into one space-joined string with no NULs between arguments, so argv[0] is the whole command line. `procs` parses both layouts (`finds_signal_with_a_rewritten_command_line`, and `store::delete_refuses_profile_running_as_the_real_snap_does`). To inspect the raw format, use `od -c /proc/<pid>/cmdline | head`.
+
 ### Task 6: Profiles (`profiles`)
 
 **Files:** Create `src/profiles.rs`; modify `src/lib.rs`.
