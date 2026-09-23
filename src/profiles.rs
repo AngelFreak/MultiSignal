@@ -1,0 +1,148 @@
+//! Profiles are the directories in `~/Signal`, not the launchers, so profiles
+//! with a missing or hand-made launcher are still found.
+
+use crate::{launcher, names, paths::Paths, procs};
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Profile {
+    pub name: String,
+    pub dir: PathBuf,
+    pub size_bytes: u64,
+    pub running: bool,
+    pub launchers: Vec<PathBuf>,
+}
+
+pub fn list_names(paths: &Paths) -> io::Result<Vec<String>> {
+    let entries = match fs::read_dir(&paths.signal_base) {
+        Ok(e) => e,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e),
+    };
+    let mut out = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if entry.file_type()?.is_dir() && names::is_valid(&name) {
+            out.push(name);
+        }
+    }
+    out.sort_by_key(|n| n.to_lowercase());
+    Ok(out)
+}
+
+/// The existing profile whose name equals `name` ignoring case, so "work" and
+/// "Work" can't both exist as near-identical menu entries.
+pub fn existing_ignoring_case(paths: &Paths, name: &str) -> Option<String> {
+    list_names(paths)
+        .ok()?
+        .into_iter()
+        .find(|n| n.eq_ignore_ascii_case(name))
+}
+
+pub fn load_all(paths: &Paths) -> io::Result<Vec<Profile>> {
+    let running = procs::running_data_dirs(&paths.proc_root);
+    list_names(paths)?
+        .into_iter()
+        .map(|name| {
+            let dir = paths.profile_dir(&name);
+            Ok(Profile {
+                size_bytes: dir_size(&dir),
+                running: running.contains(&dir),
+                launchers: launcher::find(paths, &name)?,
+                dir,
+                name,
+            })
+        })
+        .collect()
+}
+
+/// Total size of regular files, not following symlinks. Unreadable entries
+/// count as 0 rather than failing the whole list.
+pub fn dir_size(path: &Path) -> u64 {
+    let Ok(entries) = fs::read_dir(path) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|e| match e.file_type() {
+            Ok(t) if t.is_dir() => dir_size(&e.path()),
+            Ok(t) if t.is_file() => e.metadata().map_or(0, |m| m.len()),
+            _ => 0,
+        })
+        .sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup() -> (tempfile::TempDir, Paths) {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut p = Paths::for_home(tmp.path(), None);
+        p.proc_root = tmp.path().join("proc");
+        (tmp, p)
+    }
+
+    #[test]
+    fn lists_valid_profile_directories_sorted_case_insensitively() {
+        let (_t, p) = setup();
+        for d in ["work", "Damon", "UKR", "has space", ".hidden"] {
+            std::fs::create_dir_all(p.signal_base.join(d)).unwrap();
+        }
+        std::fs::write(p.signal_base.join("file.txt"), "x").unwrap();
+        assert_eq!(list_names(&p).unwrap(), ["Damon", "UKR", "work"]);
+    }
+
+    #[test]
+    fn missing_signal_dir_means_no_profiles() {
+        let (_t, p) = setup();
+        assert!(list_names(&p).unwrap().is_empty());
+    }
+
+    #[test]
+    fn finds_existing_name_ignoring_case() {
+        let (_t, p) = setup();
+        std::fs::create_dir_all(p.signal_base.join("Work")).unwrap();
+        assert_eq!(existing_ignoring_case(&p, "work").as_deref(), Some("Work"));
+        assert_eq!(existing_ignoring_case(&p, "Travel"), None);
+    }
+
+    #[test]
+    fn load_reports_size_launchers_and_running() {
+        let (_t, p) = setup();
+        let dir = p.profile_dir("UKR");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("sub/db"), vec![0u8; 5000]).unwrap();
+        crate::launcher::write(&p, "UKR").unwrap();
+        let pid = p.proc_root.join("42");
+        std::fs::create_dir_all(&pid).unwrap();
+        std::fs::write(
+            pid.join("cmdline"),
+            format!("/x/signal-desktop\0--user-data-dir={}\0", dir.display()),
+        )
+        .unwrap();
+
+        let profiles = load_all(&p).unwrap();
+        assert_eq!(profiles.len(), 1);
+        let ukr = &profiles[0];
+        assert_eq!(ukr.size_bytes, 5000);
+        assert!(ukr.running);
+        assert_eq!(ukr.launchers, vec![p.own_launcher("UKR")]);
+    }
+
+    #[test]
+    fn size_does_not_follow_symlinks() {
+        let (t, p) = setup();
+        let big = t.path().join("elsewhere");
+        std::fs::create_dir_all(&big).unwrap();
+        std::fs::write(big.join("blob"), vec![0u8; 9000]).unwrap();
+        let dir = p.profile_dir("A");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("db"), vec![0u8; 100]).unwrap();
+        std::os::unix::fs::symlink(&big, dir.join("link")).unwrap();
+        assert_eq!(dir_size(&dir), 100);
+    }
+}
