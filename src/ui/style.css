@@ -1,0 +1,116 @@
+/* Apple-style skin over libadwaita. Colours come from style-light.css /
+   style-dark.css; sizes follow the approved mockup. */
+
+window, dialog { font-family: "Inter", "Ubuntu Sans", sans-serif; }
+
+/* Bars: flat; the content bar shows a hairline and the title only after scrolling */
+headerbar { background: transparent; box-shadow: none; }
+headerbar .bar-title { opacity: 0; transition: opacity 150ms ease-out; font-size: 13px; font-weight: 600; }
+headerbar.scrolled .bar-title { opacity: 1; }
+headerbar.scrolled { box-shadow: inset 0 -1px @hairline; }
+.sidebar-title { font-size: 13px; font-weight: 600; }
+headerbar button.accent-icon, headerbar menubutton.accent-icon > button { color: @accent_color; }
+headerbar button.back-button { color: @accent_color; font-size: 15px; padding: 0 8px 0 4px; }
+
+/* Sidebar (split) */
+.compact-sidebar { background: @window_bg_color; }
+.navigation-sidebar { background: transparent; padding: 4px 10px 10px; }
+.navigation-sidebar > row { border-radius: 8px; padding: 7px 10px; margin: 1px 0; }
+.navigation-sidebar > row:hover { background: @hover_bg; }
+.navigation-sidebar > row:selected,
+.navigation-sidebar > row:selected:hover { background: @selection_bg; color: white; }
+.navigation-sidebar > row:selected .row-secondary { color: alpha(white, 0.8); }
+.navigation-sidebar > row:selected .row-warning,
+.navigation-sidebar > row:selected .status-running { color: white; }
+.sidebar-footer { padding: 10px 16px 12px; box-shadow: inset 0 1px @hairline; font-size: 12px; color: @secondary_fg; font-feature-settings: "tnum"; }
+
+.row-name { font-size: 14px; font-weight: 500; }
+.row-secondary { font-size: 12px; color: @secondary_fg; font-feature-settings: "tnum"; }
+.row-warning { font-size: 12px; color: @warning_color; }
+.status-running { font-size: 12px; font-weight: 500; color: @success_text; }
+
+/* Folded list: large title, rows in a card, chevrons */
+.large-title-box { margin: 8px 16px 20px 20px; }
+.large-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+.large-summary { font-size: 13px; color: @secondary_fg; font-feature-settings: "tnum"; }
+list.compact-list { margin: 0 16px; background: @card_bg_color; border-radius: 12px; box-shadow: none; }
+list.compact-list > row { min-height: 56px; padding: 0 0 0 16px; border-bottom: none; }
+list.compact-list > row > box { min-height: 56px; }
+list.compact-list > row:not(:last-child) > box > box { box-shadow: inset 0 -1px @hairline; }
+list.compact-list .row-name { font-size: 15px; }
+.chevron { color: @chevron_color; margin-right: 14px; }
+.compact-note { font-size: 12px; color: @secondary_fg; margin: 6px 32px 32px; }
+
+/* Detail pane */
+.hero-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+.hero-avatar > label.avatar { box-shadow: 0 6px 20px alpha(black, 0.25); }
+.detail .status-running, .status-stopped { font-size: 13px; font-weight: 500; }
+.status-stopped { color: @secondary_fg; }
+.status-dot-small { min-width: 7px; min-height: 7px; border-radius: 999px; background: @chevron_color; }
+.status-running .status-dot-small { background: @success_color; }
+.section-title { font-size: 13px; font-weight: 600; color: @secondary_fg; margin-left: 16px; }
+.detail list.boxed-list { background: @card_bg_color; border-radius: 12px; box-shadow: none; }
+.detail list.boxed-list > row { min-height: 44px; border-bottom: none; background: transparent; }
+.detail list.boxed-list > row:not(:last-child) { box-shadow: inset 0 -1px @hairline; }
+.detail list.boxed-list > row.activatable:hover { background: @hover_bg; }
+.detail row.action-row > box.header { min-height: 44px; padding: 0 16px; }
+.detail row.action-row label.title { font-size: 14px; }
+.row-value { font-size: 14px; color: @secondary_fg; font-feature-settings: "tnum"; }
+.row-warning-value { font-size: 14px; color: @warning_color; }
+.success-icon { color: @success_text; }
+.destructive-row { font-size: 14px; color: @destructive_color; margin: 13px 16px; }
+.destructive-row:disabled { color: @chevron_color; }
+.footnote { font-size: 12px; color: @secondary_fg; margin: 0 16px; }
+
+/* Desktop push buttons */
+button.push { min-height: 32px; padding: 0 16px; border-radius: 7px; background: @push_bg; color: @window_fg_color; font-size: 13px; font-weight: 500; box-shadow: none; }
+button.push:hover { background-image: image(alpha(currentColor, 0.06)); }
+button.push:active { background-image: image(alpha(currentColor, 0.12)); }
+button.push:disabled { opacity: 0.4; }
+button.push.suggested-action { background-color: @accent_bg_color; color: white; font-weight: 600; }
+button.push.destructive-action { background-color: @destructive_bg_color; color: white; font-weight: 600; }
+button.push.large { min-height: 36px; padding: 0 22px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+button.push.small { min-height: 26px; padding: 0 12px; border-radius: 6px; font-weight: 600; }
+button.push.link-text { color: @link_color; }
+.key-hint { font-size: 11px; opacity: 0.7; margin-left: 8px; }
+
+/* Avatars: soft vertical gradients */
+.avatar { border-radius: 999px; color: white; font-weight: 600; }
+.avatar-30 { font-size: 13px; }
+.avatar-36 { font-size: 15px; }
+.avatar-52 { font-size: 22px; }
+.avatar-88 { font-size: 36px; }
+.avatar-96 { font-size: 40px; }
+.avatar-c0 { background-image: linear-gradient(#5AC8FA, #007AFF); }
+.avatar-c1 { background-image: linear-gradient(#63E6BE, #30D158); }
+.avatar-c2 { background-image: linear-gradient(#FFD60A, #FF9F0A); }
+.avatar-c3 { background-image: linear-gradient(#FF8A80, #FF453A); }
+.avatar-c4 { background-image: linear-gradient(#DA8FFF, #BF5AF2); }
+.avatar-c5 { background-image: linear-gradient(#A5ABB8, #858994); }
+.status-dot { border-radius: 999px; background: @success_color; }
+.status-dot.dot-30 { min-width: 9px; min-height: 9px; box-shadow: 0 0 0 2px @sidebar_bg_color; }
+.status-dot.dot-36 { min-width: 10px; min-height: 10px; box-shadow: 0 0 0 2px @card_bg_color; }
+.status-dot.dot-hero { min-width: 16px; min-height: 16px; margin: 3px; box-shadow: 0 0 0 3px @window_bg_color; }
+.navigation-sidebar > row:selected .status-dot { box-shadow: 0 0 0 2px @selection_bg; }
+
+/* Whole-window pages */
+.page-icon { color: @secondary_fg; }
+.page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-top: 8px; }
+.page-body { font-size: 15px; color: @secondary_fg; }
+.install-progress { min-height: 44px; font-size: 14px; color: @secondary_fg; }
+.install-error { font-size: 12px; color: @error_color; }
+
+/* Dialogs, fields, toasts */
+.dialog-content { margin: 22px 22px 18px; }
+.dialog-title { font-size: 15px; font-weight: 600; }
+.dialog-body { font-size: 13px; color: @secondary_fg; }
+.desktop-dialog button.push { min-width: 60px; min-height: 30px; padding: 0 14px; }
+.field-label { font-size: 12px; font-weight: 600; color: @secondary_fg; }
+entry.field { min-height: 32px; border-radius: 7px; font-size: 13px; }
+.field-status-line { min-height: 18px; }
+.field-status { font-size: 12px; color: @secondary_fg; }
+.field-status.error { color: @error_color; }
+button.fix-it { min-height: 0; padding: 0; font-size: 12px; font-weight: 600; color: @link_color; background: none; }
+button.fix-it:hover { text-decoration: underline; }
+.trash-badge { min-width: 18px; min-height: 18px; padding: 3px; border-radius: 999px; background: @destructive_bg_color; color: white; -gtk-icon-size: 12px; box-shadow: 0 0 0 3px @dialog_bg_color; }
+toast { border-radius: 10px; background: @toast_bg; color: white; }
